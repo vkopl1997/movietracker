@@ -1,0 +1,32 @@
+/* @import must come first. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Light theme defaults */
+  background-color: #f8fafc; /* near-white */
+  color: #0f172a;            /* near-black */
+}
+
+/* Dark theme (Tailwind's `dark` class on <html>) */
+html.dark body {
+  background-color: #0a0a0a;
+  color: white;
+}
+
+/* Smooth color transitions when toggling themes */
+html, body {
+  transition: background-color 250ms ease, color 250ms ease;
+}

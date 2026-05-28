@@ -7,7 +7,10 @@
 
 // Vite exposes environment variables that start with VITE_ to the browser.
 // We'll keep the token in .env.local (which is git-ignored by Vite by default).
-const TOKEN = import.meta.env.VITE_TMDB_TOKEN
+// .trim() guards against trailing newlines that sometimes sneak in when pasting
+// long tokens into env var UIs (Vercel, Netlify, etc.) — fetch rejects them
+// with "Invalid value" because HTTP header values can't contain newlines.
+const TOKEN = import.meta.env.VITE_TMDB_TOKEN?.trim()
 
 const BASE_URL = 'https://api.themoviedb.org/3'
 const IMAGE_BASE      = 'https://image.tmdb.org/t/p/w500'  // 500px-wide posters

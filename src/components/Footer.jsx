@@ -14,7 +14,7 @@ const YEAR = new Date().getFullYear()
 function Footer() {
   return (
     <footer className="
-      mt-20 border-t border-black/5 dark:border-white/5
+      border-t border-black/5 dark:border-white/5
       bg-neutral-100/50 dark:bg-black/40
       transition-colors
     ">

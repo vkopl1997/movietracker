@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { fetchProfile, fetchUserMediaByUserId } from '../lib/favorites'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 import { gridContainer, cardVariant, fadeUp } from '../lib/motion'
 import { usePageTitle } from '../lib/usePageTitle'
 import MediaCard from '../components/MediaCard'
 import { SkeletonGrid } from '../components/SkeletonCard'
+import LikeButton from '../components/LikeButton'
 
 const STATUS_TABS = [
   { value: 'all',       label: 'All',       color: 'bg-brand' },
@@ -22,8 +25,11 @@ function joinedLabel(iso) {
 
 function UserProfilePage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [items, setItems]     = useState([])
+  const [likeCount, setLikeCount] = useState(0)
+  const [likedByMe, setLikedByMe] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
   const [tab, setTab]         = useState('all')
@@ -35,16 +41,23 @@ function UserProfilePage() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    Promise.all([fetchProfile(id), fetchUserMediaByUserId(id)])
-      .then(([p, m]) => {
+    Promise.all([
+      fetchProfile(id),
+      fetchUserMediaByUserId(id),
+      supabase.from('user_likes').select('liker_id').eq('liked_id', id),
+    ])
+      .then(([p, m, likesRes]) => {
         if (cancelled) return
         setProfile(p)
         setItems(m)
+        const likeRows = likesRes.data || []
+        setLikeCount(likeRows.length)
+        setLikedByMe(!!user && likeRows.some((row) => row.liker_id === user.id))
       })
       .catch((err) => { if (!cancelled) setError(err.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [id])
+  }, [id, user?.id])
 
   // Filter list based on tab + type
   const visible = useMemo(() => {
@@ -125,6 +138,20 @@ function UserProfilePage() {
               Joined {joinedLabel(profile.created_at)}
             </p>
           )}
+
+          {/* Like button — big variant. Disabled on own profile. */}
+          <div className="mb-4 flex justify-center sm:justify-start">
+            <LikeButton
+              targetUserId={id}
+              likeCount={likeCount}
+              likedByMe={likedByMe}
+              size="lg"
+              onChange={({ liked, count }) => {
+                setLikedByMe(liked)
+                setLikeCount(count)
+              }}
+            />
+          </div>
 
           {/* Stat pills */}
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">

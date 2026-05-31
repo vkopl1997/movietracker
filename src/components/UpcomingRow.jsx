@@ -48,13 +48,16 @@ function UpcomingRow() {
         </p>
       </div>
 
-      {/* Scroller with floating arrows on each end */}
+      {/* Scroller with floating arrows on each end.
+          topPercent="35%" centers them on the IMAGE (not the entire card
+          which also has the date/title strip below). */}
       <div className="relative">
         <ScrollArrows
           canLeft={canLeft}
           canRight={canRight}
           onLeft={scrollLeft}
           onRight={scrollRight}
+          topPercent="35%"
         />
 
         <div

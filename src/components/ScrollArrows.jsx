@@ -4,35 +4,41 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 
-const variants = {
-  initial: { opacity: 0, x: 8 },
-  animate: { opacity: 1, x: 0 },
-  exit:    { opacity: 0, x: -8 },
-}
+// Shared base classes for both buttons — brand gold, large, prominent.
+// `top` value is exposed as a prop so the consumer can shift the arrows higher
+// when the row contains cards with footers below the main image.
+const buttonClass = `
+  hidden sm:flex absolute -translate-y-1/2 z-20
+  w-14 h-14 rounded-full items-center justify-center
+  bg-brand hover:bg-brand-light text-black text-4xl font-bold
+  shadow-2xl shadow-brand/50
+  ring-2 ring-brand/30
+  transition
+  leading-none
+`
 
-function ScrollArrows({ canLeft, canRight, onLeft, onRight }) {
+// `topPercent` lets the consumer align the arrows with the IMAGE midline,
+// not the whole row's midline (the row often has a footer that pushes the
+// geometric center below the image). For UpcomingRow (image + date/title
+// below), 35% sits roughly at the image's vertical center.
+function ScrollArrows({ canLeft, canRight, onLeft, onRight, topPercent = '50%' }) {
+  const positionStyle = { top: topPercent }
   return (
     <>
       <AnimatePresence>
         {canLeft && (
           <motion.button
             key="left"
-            initial={variants.initial}
-            animate={variants.animate}
-            exit={variants.exit}
-            transition={{ duration: 0.15 }}
+            initial={{ opacity: 0, x: 8, scale: 0.8 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -8, scale: 0.8 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             onClick={onLeft}
             aria-label="Scroll left"
-            className="
-              hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 z-20
-              w-12 h-12 rounded-full items-center justify-center
-              bg-black/70 hover:bg-black/90 text-white text-2xl
-              backdrop-blur-sm shadow-xl
-              border border-white/10
-              transition
-            "
+            style={positionStyle}
+            className={`${buttonClass} left-3`}
           >
-            ‹
+            <span className="-mt-1">‹</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -40,22 +46,16 @@ function ScrollArrows({ canLeft, canRight, onLeft, onRight }) {
         {canRight && (
           <motion.button
             key="right"
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 8 }}
-            transition={{ duration: 0.15 }}
+            initial={{ opacity: 0, x: -8, scale: 0.8 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 8, scale: 0.8 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             onClick={onRight}
             aria-label="Scroll right"
-            className="
-              hidden sm:flex absolute right-1 top-1/2 -translate-y-1/2 z-20
-              w-12 h-12 rounded-full items-center justify-center
-              bg-black/70 hover:bg-black/90 text-white text-2xl
-              backdrop-blur-sm shadow-xl
-              border border-white/10
-              transition
-            "
+            style={positionStyle}
+            className={`${buttonClass} right-3`}
           >
-            ›
+            <span className="-mt-1">›</span>
           </motion.button>
         )}
       </AnimatePresence>

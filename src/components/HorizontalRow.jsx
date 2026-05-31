@@ -9,7 +9,7 @@ function HorizontalRow({ title, items, limit = 20 }) {
 
   return (
     <section className="mb-10">
-      <h2 className="text-xl font-bold mb-4">{title}</h2>
+      {title && <h2 className="text-xl font-bold mb-4">{title}</h2>}
 
       {/* Negative margin pulls scroll edges to the page edge so cards can
           peek off-screen, signalling "scrollable". */}

@@ -4,11 +4,13 @@ import { motion } from 'framer-motion'
 import { fetchProfile, fetchUserMediaByUserId } from '../lib/favorites'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { useFavorites } from '../lib/FavoritesContext'
 import { gridContainer, cardVariant, fadeUp } from '../lib/motion'
 import { usePageTitle } from '../lib/usePageTitle'
 import MediaCard from '../components/MediaCard'
 import { SkeletonGrid } from '../components/SkeletonCard'
 import LikeButton from '../components/LikeButton'
+import HorizontalRow from '../components/HorizontalRow'
 
 const STATUS_TABS = [
   { value: 'all',       label: 'All',       color: 'bg-brand' },
@@ -26,6 +28,7 @@ function joinedLabel(iso) {
 function UserProfilePage() {
   const { id } = useParams()
   const { user } = useAuth()
+  const { items: myItems } = useFavorites()   // current user's tracked items, for overlap calc
   const [profile, setProfile] = useState(null)
   const [items, setItems]     = useState([])
   const [likeCount, setLikeCount] = useState(0)
@@ -34,6 +37,8 @@ function UserProfilePage() {
   const [error, setError]     = useState(null)
   const [tab, setTab]         = useState('all')
   const [type, setType]       = useState('all')   // all | movie | tv
+
+  const isOwnProfile = user?.id === id
 
   usePageTitle(profile?.display_name)
 
@@ -75,6 +80,29 @@ function UserProfilePage() {
     watched:   items.filter((i) => i.isWatched).length,
     watchlist: items.filter((i) => i.isWatchlist).length,
   }
+
+  // ── Compute overlap between the current user and the profile owner ──
+  // Returns the profile owner's items that I also have, plus a small
+  // breakdown of how our flags align (both-favorited, both-watched, etc.).
+  const { sharedItems, sharedStats } = useMemo(() => {
+    if (!user || isOwnProfile || items.length === 0 || myItems.length === 0) {
+      return { sharedItems: [], sharedStats: { both: 0, fav: 0, watched: 0, watchlist: 0 } }
+    }
+    const myMap = new Map(myItems.map((m) => [`${m.mediaType}-${m.id}`, m]))
+    const shared = []
+    const stats  = { both: 0, fav: 0, watched: 0, watchlist: 0 }
+    for (const t of items) {
+      const key = `${t.mediaType}-${t.id}`
+      const mine = myMap.get(key)
+      if (!mine) continue
+      shared.push(t)
+      stats.both++
+      if (mine.isFavorite  && t.isFavorite)  stats.fav++
+      if (mine.isWatched   && t.isWatched)   stats.watched++
+      if (mine.isWatchlist && t.isWatchlist) stats.watchlist++
+    }
+    return { sharedItems: shared, sharedStats: stats }
+  }, [items, myItems, user, isOwnProfile])
 
   if (loading) {
     return (
@@ -161,6 +189,33 @@ function UserProfilePage() {
           </div>
         </div>
       </section>
+
+      {/* ── Shared with you (only when signed in + not own profile) ── */}
+      {sharedItems.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-xl font-bold mb-2">
+            You and {name} share {sharedItems.length} {sharedItems.length === 1 ? 'title' : 'titles'}
+          </h2>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {sharedStats.fav > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-medium border border-brand/30">
+                ♥ Both favorited <strong>{sharedStats.fav}</strong>
+              </span>
+            )}
+            {sharedStats.watched > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-medium border border-emerald-500/30">
+                ✓ Both watched <strong>{sharedStats.watched}</strong>
+              </span>
+            )}
+            {sharedStats.watchlist > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 text-sky-500 text-xs font-medium border border-sky-500/30">
+                🔖 Both on watchlist <strong>{sharedStats.watchlist}</strong>
+              </span>
+            )}
+          </div>
+          <HorizontalRow title="" items={sharedItems} />
+        </section>
+      )}
 
       {/* ── Status tabs ─────────────────────────────────────── */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">

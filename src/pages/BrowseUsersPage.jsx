@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import { gridContainer, cardVariant } from '../lib/motion'
@@ -108,12 +109,12 @@ function BrowseUsersPage() {
   )
 }
 
-function UserCard({ display_name, avatar_url, created_at }) {
+function UserCard({ id, display_name, avatar_url, created_at }) {
   const name = display_name || 'Anonymous'
   const initial = name.trim().charAt(0).toUpperCase() || '?'
 
   return (
-    <div className="group text-center">
+    <Link to={`/user/${id}`} className="group text-center block">
       <div className="
         aspect-square rounded-full overflow-hidden
         bg-neutral-200 dark:bg-neutral-800
@@ -136,13 +137,15 @@ function UserCard({ display_name, avatar_url, created_at }) {
           </div>
         )}
       </div>
-      <div className="text-sm font-semibold leading-tight line-clamp-1">{name}</div>
+      <div className="text-sm font-semibold leading-tight line-clamp-1 group-hover:text-brand transition-colors">
+        {name}
+      </div>
       {created_at && (
         <div className="text-[11px] text-neutral-500 dark:text-white/50 mt-0.5">
           {formatJoined(created_at)}
         </div>
       )}
-    </div>
+    </Link>
   )
 }
 

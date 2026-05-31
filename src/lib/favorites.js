@@ -10,6 +10,8 @@
 import { supabase } from './supabase'
 
 // ── Fetch ────────────────────────────────────────────────────────────
+// Fetch the CURRENT user's media (RLS picks up auth.uid() automatically when
+// no .eq() filter is set).
 export async function fetchUserMedia() {
   const { data, error } = await supabase
     .from('user_favorites')
@@ -19,6 +21,31 @@ export async function fetchUserMedia() {
   if (error) throw error
 
   return data.map(rowToItem)
+}
+
+// Fetch ANY user's media by their auth uuid. Used for public profile pages.
+// Requires the "Favorites are publicly readable" RLS policy.
+export async function fetchUserMediaByUserId(userId) {
+  const { data, error } = await supabase
+    .from('user_favorites')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data.map(rowToItem)
+}
+
+// Fetch a single profile row by user id.
+export async function fetchProfile(userId) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name, avatar_url, created_at')
+    .eq('id', userId)
+    .single()
+
+  if (error) throw error
+  return data
 }
 
 // Map a DB row to the in-app shape used by MediaCard etc.

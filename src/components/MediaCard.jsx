@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { useFavorites } from '../lib/FavoritesContext'
 import { MediaActionsCompact } from './MediaActions'
@@ -91,4 +92,8 @@ function MediaCard({ id, title, year, mediaType, posterUrl, rating }) {
   )
 }
 
-export default MediaCard
+// memo() prevents re-renders when props haven't changed.
+// Critical for INP: typing in the search bar triggers BrowsePage to re-render,
+// but each card's props are stable until results actually change — memo bails
+// the cards out, keeping the grid render cheap.
+export default memo(MediaCard)

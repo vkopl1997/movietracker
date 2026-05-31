@@ -1,3 +1,4 @@
+import { startTransition, useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useTheme } from '../lib/ThemeContext'
@@ -12,15 +13,28 @@ function Navbar() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const query = searchParams.get('q') || ''
+  const urlQuery = searchParams.get('q') || ''
+
+  // ── INP fix: local input state for instant typing feedback ──────────
+  // The input reads from `localValue` (synchronous state) so the new character
+  // paints immediately. The URL update happens inside startTransition() so React
+  // marks it as non-urgent — input paint isn't blocked by the URL/route work.
+  const [localValue, setLocalValue] = useState(urlQuery)
+
+  // Keep local in sync when URL changes externally (e.g. user clicks Browse).
+  useEffect(() => { setLocalValue(urlQuery) }, [urlQuery])
 
   function onChange(value) {
-    if (location.pathname !== '/') {
-      navigate(value ? `/?q=${encodeURIComponent(value)}` : '/')
-      return
-    }
-    if (value) setSearchParams({ q: value })
-    else setSearchParams({})
+    setLocalValue(value)   // 🟢 immediate — paints next frame
+    startTransition(() => {
+      // 🟡 low-priority — won't block the input paint
+      if (location.pathname !== '/') {
+        navigate(value ? `/?q=${encodeURIComponent(value)}` : '/')
+        return
+      }
+      if (value) setSearchParams({ q: value })
+      else setSearchParams({})
+    })
   }
 
   return (
@@ -76,7 +90,7 @@ function Navbar() {
         <div className="flex-1 max-w-xl">
           <input
             type="text"
-            value={query}
+            value={localValue}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Search movies & TV shows…"
             className="

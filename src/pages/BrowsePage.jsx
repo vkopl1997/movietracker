@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import MediaCard from '../components/MediaCard'
 import Hero from '../components/Hero'
 import UpcomingRow from '../components/UpcomingRow'
+import PopularPeopleRow from '../components/PopularPeopleRow'
 import { SkeletonGrid } from '../components/SkeletonCard'
 import { getTrending, searchMulti } from '../lib/tmdb'
 import { gridContainer, cardVariant } from '../lib/motion'
@@ -116,8 +117,13 @@ function BrowsePage() {
           ))}
         </motion.div>
 
-        {/* "Coming soon to theaters" — only on the default home view, not on search results */}
-        {!searchQuery && <UpcomingRow />}
+        {/* Bonus rows — only on the default home view, not on search results */}
+        {!searchQuery && (
+          <>
+            <UpcomingRow />
+            <PopularPeopleRow />
+          </>
+        )}
       </main>
     </>
   )

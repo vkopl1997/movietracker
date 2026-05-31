@@ -111,6 +111,16 @@ export async function getTrendingPeople() {
   return (data.results ?? []).map(normalizePerson)
 }
 
+// Popular people sorted by TMDb's all-time popularity score.
+// Different from getTrendingPeople which is weekly trending — these are
+// the household names regardless of what's in the news this week.
+export async function getPopularPeople() {
+  const data = await tmdbFetch('/person/popular')
+  return (data.results ?? [])
+    .filter((p) => p.profile_path)   // skip people without a photo
+    .map(normalizePerson)
+}
+
 export async function searchPeople(query) {
   const data = await tmdbFetch(`/search/person?query=${encodeURIComponent(query)}`)
   return (data.results ?? []).map(normalizePerson)

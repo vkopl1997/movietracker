@@ -192,38 +192,13 @@ function PickPage() {
               watch {COMPANY.find((c) => c.value === company)?.label.toLowerCase()}:
             </p>
 
-            {/* Compact card grid — narrower max-width keeps cards small enough
-                that the whole page fits without scrolling on standard desktops. */}
-            <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-4 max-w-xl mx-auto">
+            {/* Card grid — slightly wider than the form view but still compact
+                enough to keep the whole page in the viewport. */}
+            <div className="grid grid-cols-3 gap-3 sm:gap-5 mb-5 max-w-2xl mx-auto">
               <AnimatePresence mode="wait">
                 {loading ? (
-                  // SHIMMERING SKELETONS — three pulsing placeholders, same shape as the cards
-                  [0, 1, 2].map((i) => (
-                    <motion.div
-                      key={`skel-${round}-${i}`}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ delay: i * 0.08, duration: 0.2 }}
-                      className="text-center"
-                    >
-                      <div className="aspect-[2/3] rounded-xl overflow-hidden bg-neutral-200 dark:bg-neutral-900 ring-1 ring-black/5 dark:ring-white/5 relative">
-                        <motion.div
-                          className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/20 to-transparent"
-                          animate={{ x: ['-100%', '100%'] }}
-                          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.2 }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-30">✨</div>
-                      </div>
-                      <div className="mt-3 mx-auto h-3 rounded-full bg-neutral-200 dark:bg-neutral-800 w-3/4 overflow-hidden">
-                        <motion.div
-                          className="h-full w-1/3 bg-gradient-to-r from-transparent via-brand/30 to-transparent"
-                          animate={{ x: ['-100%', '400%'] }}
-                          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.2 + 0.3 }}
-                        />
-                      </div>
-                    </motion.div>
-                  ))
+                  // SKELETONS — elaborate, branded, structured like real cards
+                  [0, 1, 2].map((i) => <SkeletonPickCard key={`skel-${round}-${i}`} index={i} />)
                 ) : picks ? (
                   // REAL CARDS — dealt-in animation by round (changes each Pick again)
                   picks.map((pick, idx) => (
@@ -438,6 +413,95 @@ function Choices({ options, value, onSelect, renderLabel }) {
         )
       })}
     </div>
+  )
+}
+
+// Polished skeleton "pick card" — mimics a real card's anatomy:
+//   - Top image area with gold shimmer + tint
+//   - Star rating + media-type badge in the corners
+//   - Title bar overlaid at the bottom of the image
+//   - Text lines below for the reasoning sentence
+// Each card animates in with a slight stagger (handled by parent grid).
+function SkeletonPickCard({ index = 0 }) {
+  // Per-card variety so the three skeletons don't look mechanically identical
+  const titleW = ['78%', '85%', '62%'][index % 3]
+  const yearW  = ['38%', '45%', '32%'][index % 3]
+  const lines  = [
+    ['88%', '92%', '70%'],
+    ['82%', '90%', '60%'],
+    ['90%', '76%', '64%'],
+  ][index % 3]
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -16, scale: 0.95 }}
+      transition={{
+        type: 'spring',
+        stiffness: 220,
+        damping: 22,
+        delay: index * 0.12,
+      }}
+      className="text-center"
+    >
+      {/* ─── Card body: poster placeholder with rating + type badge + title bar ─── */}
+      <div className="
+        relative aspect-[2/3] overflow-hidden rounded-xl
+        bg-gradient-to-br from-neutral-200 to-neutral-300
+        dark:from-neutral-800 dark:to-neutral-900
+        ring-1 ring-black/5 dark:ring-white/5
+      ">
+        {/* Soft gold tint over everything so it feels on-brand */}
+        <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-transparent to-brand/5 pointer-events-none" />
+
+        {/* Diagonal gold-ish shimmer sweep — repeats every 1.6s with stagger */}
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/30 to-transparent"
+          style={{ transform: 'skewX(-12deg)' }}
+          animate={{ x: ['-120%', '120%'] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: index * 0.25 }}
+        />
+
+        {/* Sparkle in the middle, faint */}
+        <div className="absolute inset-0 flex items-center justify-center text-5xl opacity-15">✨</div>
+
+        {/* Top-left: pretend star rating badge */}
+        <div className="absolute top-2 left-2 h-4 w-12 rounded-md bg-black/40 dark:bg-black/60 backdrop-blur-sm" />
+
+        {/* Top-right: pretend media-type badge */}
+        <div className="absolute top-2 right-2 h-4 w-10 rounded-md bg-brand/50" />
+
+        {/* Bottom: pretend title strip (sits over the dark gradient like the real card) */}
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-3 bottom-3 space-y-1.5">
+          <div className="h-2.5 rounded-full bg-white/70 dark:bg-white/40" style={{ width: titleW }} />
+          <div className="h-1.5 rounded-full bg-white/50 dark:bg-white/25" style={{ width: yearW }} />
+        </div>
+      </div>
+
+      {/* ─── Reasoning placeholder: three shimmering lines ─── */}
+      <div className="mt-3 space-y-1.5 flex flex-col items-center">
+        {lines.map((w, j) => (
+          <div
+            key={j}
+            className="relative h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
+            style={{ width: w }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/40 to-transparent"
+              animate={{ x: ['-100%', '300%'] }}
+              transition={{
+                duration: 1.6,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: index * 0.2 + j * 0.15,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </motion.div>
   )
 }
 

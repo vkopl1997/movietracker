@@ -185,14 +185,28 @@ function MediaDetailPage({ mediaType }) {
             <h2 className="text-xl font-bold mb-5">Cast</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-4">
               {data.cast.map((person) => (
-                <div key={person.id} className="text-center">
-                  <div className="aspect-square overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800 ring-1 ring-black/5 dark:ring-white/5 mb-2">
+                <Link
+                  key={person.id}
+                  to={`/person/${person.id}`}
+                  className="group text-center"
+                >
+                  <div className="
+                    aspect-square overflow-hidden rounded-full
+                    bg-neutral-200 dark:bg-neutral-800
+                    ring-1 ring-black/5 dark:ring-white/5
+                    mb-2 transition
+                    group-hover:ring-2 group-hover:ring-brand
+                    group-hover:shadow-lg group-hover:shadow-brand/20
+                  ">
                     {person.photoUrl ? (
                       <img
                         src={person.photoUrl}
                         alt={person.name}
                         loading="lazy"
-                        className="w-full h-full object-cover"
+                        className="
+                          w-full h-full object-cover
+                          transition duration-300 group-hover:scale-105
+                        "
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-2xl text-neutral-400 dark:text-white/30">
@@ -200,13 +214,15 @@ function MediaDetailPage({ mediaType }) {
                       </div>
                     )}
                   </div>
-                  <div className="text-xs font-semibold leading-tight">{person.name}</div>
+                  <div className="text-xs font-semibold leading-tight group-hover:text-brand transition-colors">
+                    {person.name}
+                  </div>
                   {person.character && (
                     <div className="text-[10px] text-neutral-500 dark:text-white/50 mt-0.5 leading-tight">
                       {person.character}
                     </div>
                   )}
-                </div>
+                </Link>
               ))}
             </div>
           </section>

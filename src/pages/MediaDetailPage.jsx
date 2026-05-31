@@ -5,6 +5,7 @@ import { getMediaDetails } from '../lib/tmdb'
 import { fadeUp } from '../lib/motion'
 import { usePageTitle } from '../lib/usePageTitle'
 import { MediaActionsFull } from '../components/MediaActions'
+import WhereToWatch from '../components/WhereToWatch'
 
 // One component handles both /movie/:id and /tv/:id.
 // We pass mediaType as a prop from the route definition.
@@ -146,6 +147,9 @@ function MediaDetailPage({ mediaType }) {
             </div>
           </div>
         </div>
+
+        {/* ─── Where to watch ─── */}
+        <WhereToWatch mediaType={mediaType} id={id} />
 
         {/* ─── Cast ─── */}
         {data.cast.length > 0 && (

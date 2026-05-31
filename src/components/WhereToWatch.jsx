@@ -1,0 +1,185 @@
+// WhereToWatch — shows streaming/rent/buy availability for a movie or TV show.
+//
+// Data source: TMDb /watch/providers (powered by JustWatch).
+// Per country: arrays of providers under `flatrate` (subscription), `rent`, `buy`.
+//
+// UX:
+//   - Auto-detect user's country from browser locale
+//   - Persist the user's chosen country in localStorage
+//   - Dropdown to switch regions (only countries with data shown)
+//   - "Open on JustWatch" deep link for the full picture
+//   - Hides itself entirely if TMDb has no providers anywhere
+
+import { useEffect, useMemo, useState } from 'react'
+import { getWatchProviders, PROVIDER_LOGO_BASE } from '../lib/tmdb'
+
+const STORAGE_KEY = 'mt_country'
+
+// Browser → country code ("en-US" → "US", "ka-GE" → "GE")
+function detectCountry() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored && stored.length === 2) return stored
+    const locale = navigator.language || navigator.languages?.[0] || 'en-US'
+    const cc = locale.split('-')[1]?.toUpperCase()
+    if (cc && cc.length === 2) return cc
+  } catch {}
+  return 'US'
+}
+
+// "US" → 🇺🇸 (each letter becomes a Regional Indicator Symbol, the unicode
+// hack browsers turn into flag emojis)
+function countryFlag(code) {
+  return [...code.toUpperCase()]
+    .map((c) => String.fromCodePoint(127397 + c.charCodeAt(0)))
+    .join('')
+}
+
+// "US" → "United States" using the browser's built-in i18n
+let regionNames
+function countryName(code) {
+  if (!regionNames) {
+    try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }) } catch {}
+  }
+  return regionNames?.of(code) ?? code
+}
+
+function WhereToWatch({ mediaType, id }) {
+  const [providers, setProviders] = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [country, setCountry]     = useState(detectCountry)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getWatchProviders(mediaType, id)
+      .then((data) => { if (!cancelled) setProviders(data) })
+      .catch(() => { if (!cancelled) setProviders({}) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [mediaType, id])
+
+  // Persist country preference when user changes it
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, country) } catch {}
+  }, [country])
+
+  // List of country codes for which TMDb has *any* data, sorted with a few
+  // "favorites" at the top for quick switching.
+  const availableCountries = useMemo(() => {
+    if (!providers) return []
+    const top = ['US', 'GB', 'GE', 'DE', 'FR', 'NL', 'ES', 'IT']
+    const all = Object.keys(providers).sort()
+    const topInData = top.filter((c) => all.includes(c))
+    const rest = all.filter((c) => !top.includes(c))
+    return [...topInData, ...rest]
+  }, [providers])
+
+  if (loading) return null
+  if (!providers || availableCountries.length === 0) return null
+
+  const regionData = providers[country]
+
+  return (
+    <section className="mb-12">
+      <div className="flex items-baseline justify-between flex-wrap gap-3 mb-4">
+        <h2 className="text-xl font-bold">Where to watch</h2>
+
+        {/* Country selector */}
+        <select
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          className="
+            px-3 py-1.5 rounded-full text-sm
+            bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
+            border border-black/10 dark:border-white/10
+            text-neutral-700 dark:text-white/70
+            focus:outline-none focus:border-brand transition
+          "
+        >
+          {availableCountries.map((c) => (
+            <option key={c} value={c}>
+              {countryFlag(c)} {countryName(c)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* No availability in this region */}
+      {!regionData && (
+        <div className="p-6 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-sm text-neutral-600 dark:text-white/70">
+          Not available to stream in <strong>{countryName(country)}</strong>.
+          Try switching regions above, or check <a
+            href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer"
+            className="text-brand hover:underline"
+          >JustWatch</a>.
+        </div>
+      )}
+
+      {regionData && (
+        <div className="space-y-5">
+          <ProviderRow label="Stream"  providers={regionData.flatrate} />
+          <ProviderRow label="Rent"    providers={regionData.rent} />
+          <ProviderRow label="Buy"     providers={regionData.buy} />
+          <ProviderRow label="Free"    providers={regionData.free} />
+          <ProviderRow label="With ads" providers={regionData.ads} />
+
+          {regionData.link && (
+            <a
+              href={regionData.link}
+              target="_blank" rel="noopener noreferrer"
+              className="inline-block text-sm text-neutral-500 dark:text-white/50 hover:text-brand transition"
+            >
+              See full details on JustWatch ↗
+            </a>
+          )}
+        </div>
+      )}
+
+      <p className="text-[11px] text-neutral-400 dark:text-white/40 mt-4">
+        Streaming data via <a
+          href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer"
+          className="hover:underline"
+        >JustWatch</a>.
+      </p>
+    </section>
+  )
+}
+
+// One labeled row of provider logos. Hidden if the category is empty.
+function ProviderRow({ label, providers }) {
+  if (!providers || providers.length === 0) return null
+
+  // Sort by display_priority (lower = more prominent)
+  const sorted = [...providers].sort((a, b) => (a.display_priority ?? 99) - (b.display_priority ?? 99))
+
+  return (
+    <div>
+      <div className="text-xs font-semibold tracking-wider uppercase text-neutral-500 dark:text-white/50 mb-2">
+        {label}
+      </div>
+      <div className="flex flex-wrap gap-2.5">
+        {sorted.map((p) => (
+          <div
+            key={p.provider_id}
+            title={p.provider_name}
+            className="
+              w-12 h-12 rounded-lg overflow-hidden shrink-0
+              ring-1 ring-black/10 dark:ring-white/10
+              transition hover:ring-brand hover:-translate-y-0.5
+            "
+          >
+            <img
+              src={`${PROVIDER_LOGO_BASE}${p.logo_path}`}
+              alt={p.provider_name}
+              loading="lazy"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default WhereToWatch

@@ -85,6 +85,16 @@ export async function searchMulti(query) {
     .map(normalize)
 }
 
+// Fetch streaming/rent/buy availability per country.
+// Response shape: { results: { 'US': { flatrate: [...], rent: [...], buy: [...] }, 'GE': {...}, ... } }
+export async function getWatchProviders(mediaType, id) {
+  const data = await tmdbFetch(`/${mediaType}/${id}/watch/providers`)
+  return data.results || {}
+}
+
+// Provider logos are small icons — w92 keeps them sharp and cheap to load.
+export const PROVIDER_LOGO_BASE = 'https://image.tmdb.org/t/p/w92'
+
 // Fetch the full details for one movie or TV show, including cast.
 // `append_to_response=credits` is a TMDb trick — get details + credits in ONE request.
 export async function getMediaDetails(mediaType, id) {

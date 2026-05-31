@@ -4,20 +4,17 @@
 // is in the algorithm:
 //   • Mood → TMDb genre ids (multi-genre query)
 //   • Family company → MPAA cert <= PG
-//   • Personalization: user's most-favorited genres get an additional bias
-//   • Variety: rotates between three sort orders + random pagination each
+//   • Variety: rotates between three sort orders + 2-page fetch each
 //     time the user clicks "Pick again"
-//   • Memory: tracks every movie id we've already shown this session so
-//     "Pick again" returns brand-new results until the pool is exhausted
+//   • Memory: tracks every movie id we've already shown this session
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useFavorites } from '../lib/FavoritesContext'
 import { discoverMovies } from '../lib/tmdb'
 import { usePageTitle } from '../lib/usePageTitle'
 import MediaCard from '../components/MediaCard'
 
-// TMDb genre ids — see /genre/movie/list
 const GENRE = {
   action: 28,    adventure: 12,  animation: 16, comedy: 35,    crime: 80,
   doc:    99,    drama: 18,       family: 10751, fantasy: 14,  history: 36,
@@ -43,10 +40,8 @@ const COMPANY = [
   { value: 'family',  label: 'With family',  familyFriendly: true },
 ]
 
-// Sorts we rotate through so re-running the picker doesn't show the same things
 const SORT_ROTATION = ['vote_average.desc', 'popularity.desc', 'vote_count.desc']
 
-// Template-based reasoning so the result feels personal
 function reasonFor(item, mood, company) {
   const ratingTag = item.rating >= 8 ? 'Critically loved' : item.rating >= 7 ? 'Highly rated' : 'Well reviewed'
   const moodPhrase = {
@@ -79,32 +74,23 @@ function PickPage() {
   const [loading, setLoading] = useState(false)
   const [picks, setPicks]     = useState(null)
   const [error, setError]     = useState(null)
+  const [round, setRound]     = useState(0)   // bumps each "Pick again" — drives AnimatePresence key
 
-  // Memory of every id we've already shown this session — Pick again
-  // skips these so the user always sees new movies until the pool runs out.
   const [seenIds, setSeenIds] = useState(() => new Set())
-
-  // Track which sort order to use next (cycle through the rotation)
   const [sortIdx, setSortIdx] = useState(0)
 
-  // ── Personalization: which genres show up most in user's favorites? ──
-  // We can't see genres on saved items (we don't store them), but we can
-  // infer from media_type ratios + rating preferences. For now we use the
-  // mood's genres as the primary signal and let the random rotation create
-  // variety. (Future enhancement: store genres on favorites for real personalization.)
   const watchedIds = useMemo(
     () => new Set(items.filter((i) => i.isWatched && i.mediaType === 'movie').map((i) => i.id)),
     [items]
   )
 
-  async function generate({ keepSeen = false } = {}) {
+  async function generate() {
     if (!mood || !company) return
     setLoading(true); setError(null); setPicks(null)
 
     const moodOpt    = MOODS.find((m) => m.value === mood)    || {}
     const companyOpt = COMPANY.find((c) => c.value === company) || {}
 
-    // Build the discover filter set for this round.
     const baseFilter = {
       genres: moodOpt.genres || [],
       familyFriendly: !!companyOpt.familyFriendly,
@@ -115,7 +101,6 @@ function PickPage() {
     if (moodOpt.beforeYear) baseFilter.releaseBefore = moodOpt.beforeYear
 
     try {
-      // Fetch 2 pages in parallel for more variety
       const pageA = Math.floor(Math.random() * 3) + 1
       const pageB = pageA + 3
       const [resA, resB] = await Promise.all([
@@ -124,15 +109,10 @@ function PickPage() {
       ])
       let pool = [...resA, ...resB]
 
-      // Deduplicate (same movie could appear in both pages)
-      const seenInPool = new Set()
-      pool = pool.filter((m) => seenInPool.has(m.id) ? false : (seenInPool.add(m.id), true))
+      const dedupe = new Set()
+      pool = pool.filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
+      pool = pool.filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
 
-      // Skip already-watched + previously-shown
-      pool = pool.filter((m) => !watchedIds.has(m.id))
-      if (!keepSeen) pool = pool.filter((m) => !seenIds.has(m.id))
-
-      // If still not enough, relax the rating bar
       if (pool.length < 3) {
         const relaxed = await discoverMovies({
           ...baseFilter, minRating: 6, minVoteCount: 100, page: Math.floor(Math.random() * 4) + 1,
@@ -144,25 +124,20 @@ function PickPage() {
       }
 
       if (pool.length === 0) {
-        // We've exhausted the pool — reset the memory so they can pick again from scratch
         setSeenIds(new Set())
-        setError('You\'ve seen every match — clearing memory. Try Pick again to start fresh.')
+        setError("You've seen every match — clearing memory. Try Pick again to start fresh.")
         return
       }
 
-      // Shuffle, then take 3
       const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
       setPicks(shuffled)
-
-      // Remember these so Pick again won't repeat them
       setSeenIds((prev) => {
         const next = new Set(prev)
         for (const m of shuffled) next.add(m.id)
         return next
       })
-
-      // Cycle to next sort order for next round
       setSortIdx((i) => i + 1)
+      setRound((r) => r + 1)
     } catch (err) {
       setError(err.message || 'Something went wrong picking movies.')
     } finally {
@@ -172,7 +147,7 @@ function PickPage() {
 
   function reset() {
     setStep(1); setMood(null); setCompany(null); setPicks(null); setError(null)
-    setSeenIds(new Set()); setSortIdx(0)
+    setSeenIds(new Set()); setSortIdx(0); setRound(0)
   }
 
   // ── Render ────────────────────────────────────────────────────────
@@ -180,7 +155,13 @@ function PickPage() {
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <header className="text-center mb-10">
         <div className="text-xs font-bold tracking-[0.25em] text-brand uppercase mb-2 flex items-center justify-center gap-1.5">
-          <span className="animate-pulse">✨</span> AI Pick
+          <motion.span
+            animate={{ rotate: [0, 15, -10, 0], scale: [1, 1.2, 1] }}
+            transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+          >
+            ✨
+          </motion.span>
+          AI Pick
         </div>
         <h1 className="font-display text-5xl sm:text-6xl tracking-[0.02em] mb-2">
           What should I watch?
@@ -190,107 +171,178 @@ function PickPage() {
         </p>
       </header>
 
-      {/* ── Results ────────────────────────────────────────────────── */}
-      {picks ? (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="text-center mb-6 text-sm text-neutral-500 dark:text-white/60">
-            For a <strong>{MOODS.find((m) => m.value === mood)?.label.toLowerCase()}</strong>{' '}
-            watch {COMPANY.find((c) => c.value === company)?.label.toLowerCase()}:
-          </div>
+      {/* One AnimatePresence at the top so form→loading→results crossfade cleanly */}
+      <AnimatePresence mode="wait">
+        {picks ? (
+          <motion.section
+            key={`results-${round}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <p className="text-center mb-6 text-sm text-neutral-500 dark:text-white/60">
+              For a <strong>{MOODS.find((m) => m.value === mood)?.label.toLowerCase()}</strong>{' '}
+              watch {COMPANY.find((c) => c.value === company)?.label.toLowerCase()}:
+            </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-            {picks.map((pick) => (
-              <div key={pick.id} className="text-center">
-                <MediaCard {...pick} />
-                <p className="mt-3 text-xs text-neutral-600 dark:text-white/70 leading-relaxed px-1">
-                  {reasonFor(pick, mood, company)}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-3 mb-2">
-            <button
-              onClick={() => generate()}
-              disabled={loading}
-              className="px-5 py-2.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition disabled:opacity-60"
-            >
-              ✨ Pick again
-            </button>
-            <button
-              onClick={reset}
-              className="px-5 py-2.5 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-sm transition"
-            >
-              Start over
-            </button>
-          </div>
-
-          {/* Small memory indicator so users see we're tracking */}
-          <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
-            {seenIds.size} {seenIds.size === 1 ? 'movie' : 'movies'} excluded from future picks this session.
-          </p>
-        </motion.div>
-      ) : loading ? (
-        <div className="text-center py-20">
-          <div className="text-4xl mb-4 animate-pulse">✨</div>
-          <p className="text-neutral-500 dark:text-white/60">Finding tonight's pick…</p>
-        </div>
-      ) : (
-        // ── Form ─────────────────────────────────────────────────────
-        <div className="space-y-10">
-          <Step n="1" question="What's your mood?" active={step >= 1}>
-            <Choices
-              options={MOODS}
-              value={mood}
-              onSelect={(v) => { setMood(v); setStep(2) }}
-              renderLabel={(o) => <><span className="mr-2">{o.emoji}</span>{o.label}</>}
-            />
-          </Step>
-
-          <Step n="2" question="Who are you watching with?" active={step >= 2}>
-            <Choices
-              options={COMPANY}
-              value={company}
-              onSelect={(v) => setCompany(v)}
-            />
-          </Step>
-
-          {error && (
-            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center">
-              ⚠️ {error}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+              {picks.map((pick, idx) => (
+                <motion.div
+                  key={`${round}-${pick.id}`}
+                  initial={{ opacity: 0, y: 80, rotateX: 25, scale: 0.85 }}
+                  animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 220,
+                    damping: 22,
+                    delay: idx * 0.18,
+                  }}
+                  className="text-center"
+                  style={{ perspective: 800 }}
+                >
+                  <MediaCard {...pick} />
+                  <motion.p
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 + idx * 0.18, duration: 0.4 }}
+                    className="mt-3 text-xs text-neutral-600 dark:text-white/70 leading-relaxed px-1"
+                  >
+                    {reasonFor(pick, mood, company)}
+                  </motion.p>
+                </motion.div>
+              ))}
             </div>
-          )}
 
-          {mood && company && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center pt-4">
-              <button
-                onClick={() => generate({ keepSeen: false })}
-                className="px-8 py-3.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-base shadow-lg shadow-brand/30 transition"
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.1 }}
+              className="flex flex-wrap justify-center gap-3 mb-2"
+            >
+              <motion.button
+                onClick={generate}
+                disabled={loading}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                className="px-5 py-2.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition disabled:opacity-60 shadow-lg shadow-brand/30"
               >
-                ✨ Find me something
-              </button>
+                ✨ Pick again
+              </motion.button>
+              <motion.button
+                onClick={reset}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                className="px-5 py-2.5 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-sm transition"
+              >
+                Start over
+              </motion.button>
             </motion.div>
-          )}
-        </div>
-      )}
+
+            <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
+              {seenIds.size} {seenIds.size === 1 ? 'movie' : 'movies'} excluded from future picks this session.
+            </p>
+          </motion.section>
+        ) : loading ? (
+          <motion.section
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-center py-20"
+          >
+            <SparkleLoader />
+            <motion.p
+              className="text-neutral-500 dark:text-white/60 mt-6"
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.6, repeat: Infinity }}
+            >
+              Finding tonight's pick<ThinkingDots />
+            </motion.p>
+          </motion.section>
+        ) : (
+          <motion.section
+            key="form"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-10"
+          >
+            <Step n="1" question="What's your mood?" active={step >= 1}>
+              <Choices
+                options={MOODS}
+                value={mood}
+                onSelect={(v) => { setMood(v); setStep(2) }}
+                renderLabel={(o) => <><span className="mr-2">{o.emoji}</span>{o.label}</>}
+              />
+            </Step>
+
+            <Step n="2" question="Who are you watching with?" active={step >= 2}>
+              <Choices
+                options={COMPANY}
+                value={company}
+                onSelect={(v) => setCompany(v)}
+              />
+            </Step>
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center"
+              >
+                ⚠️ {error}
+              </motion.div>
+            )}
+
+            <AnimatePresence>
+              {mood && company && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 16 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                  className="text-center pt-4"
+                >
+                  <motion.button
+                    onClick={generate}
+                    whileHover={{ scale: 1.05, boxShadow: '0 10px 40px -10px rgba(212,175,55,0.6)' }}
+                    whileTap={{ scale: 0.97 }}
+                    className="px-8 py-3.5 rounded-full bg-brand text-black font-semibold text-base shadow-lg shadow-brand/30 transition-shadow"
+                  >
+                    ✨ Find me something
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.section>
+        )}
+      </AnimatePresence>
     </main>
   )
 }
 
-// ── Small UI subcomponents ────────────────────────────────────────────
+// ── Subcomponents ────────────────────────────────────────────────────
+
+// Step container: number badge bounces in, content slides up
 function Step({ n, question, active, children }) {
   return (
     <AnimatePresence>
       {active && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
         >
           <div className="flex items-center gap-3 mb-4">
-            <span className="w-7 h-7 rounded-full bg-brand text-black font-bold text-sm flex items-center justify-center">
+            <motion.span
+              initial={{ scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 18, delay: 0.1 }}
+              className="w-8 h-8 rounded-full bg-brand text-black font-bold text-sm flex items-center justify-center shadow-md shadow-brand/30"
+            >
               {n}
-            </span>
+            </motion.span>
             <h2 className="text-lg sm:text-xl font-bold">{question}</h2>
           </div>
           {children}
@@ -300,27 +352,103 @@ function Step({ n, question, active, children }) {
   )
 }
 
+// Choice pills with rich hover/tap/active animations
 function Choices({ options, value, onSelect, renderLabel }) {
   return (
-    <div className="flex flex-wrap gap-2 sm:gap-3 ml-10">
-      {options.map((opt) => {
+    <div className="flex flex-wrap gap-2 sm:gap-3 ml-11">
+      {options.map((opt, idx) => {
         const active = value === opt.value
         return (
-          <button
+          <motion.button
             key={opt.value}
             onClick={() => onSelect(opt.value)}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{
+              opacity: 1, y: 0,
+              scale: active ? 1.04 : 1,
+            }}
+            transition={{
+              opacity: { duration: 0.2, delay: idx * 0.04 },
+              y:       { duration: 0.2, delay: idx * 0.04 },
+              scale:   { type: 'spring', stiffness: 400, damping: 22 },
+            }}
+            whileHover={{ scale: active ? 1.05 : 1.03, y: -1 }}
+            whileTap={{ scale: 0.95 }}
             className={`
-              px-4 py-2.5 rounded-full text-sm font-medium transition
+              px-4 py-2.5 rounded-full text-sm font-medium transition-colors
               ${active
-                ? 'bg-brand text-black border border-brand'
+                ? 'bg-brand text-black border border-brand shadow-lg shadow-brand/40'
                 : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-700 dark:text-white/80'}
             `}
           >
             {renderLabel ? renderLabel(opt) : opt.label}
-          </button>
+          </motion.button>
         )
       })}
     </div>
+  )
+}
+
+// Multiple sparkles orbiting / pulsing during the wait
+function SparkleLoader() {
+  // Positions around a circle
+  const sparkles = [
+    { x: 0,   y: -40, delay: 0   },
+    { x: 35,  y: -20, delay: 0.15 },
+    { x: 40,  y: 20,  delay: 0.3 },
+    { x: 0,   y: 40,  delay: 0.45 },
+    { x: -40, y: 20,  delay: 0.6 },
+    { x: -35, y: -20, delay: 0.75 },
+  ]
+  return (
+    <div className="relative inline-flex items-center justify-center w-32 h-32">
+      {sparkles.map((s, i) => (
+        <motion.span
+          key={i}
+          className="absolute text-2xl"
+          style={{ left: '50%', top: '50%' }}
+          initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+          animate={{
+            opacity: [0, 1, 0],
+            scale:   [0, 1.2, 0],
+            x:       [0, s.x, s.x * 0.5],
+            y:       [0, s.y, s.y * 0.5],
+          }}
+          transition={{
+            duration: 1.8,
+            repeat: Infinity,
+            delay: s.delay,
+            ease: 'easeOut',
+          }}
+        >
+          ✨
+        </motion.span>
+      ))}
+      <motion.span
+        className="text-5xl"
+        animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }}
+        transition={{ duration: 2, repeat: Infinity }}
+      >
+        🎬
+      </motion.span>
+    </div>
+  )
+}
+
+// Animated ". . ." after "Finding tonight's pick"
+function ThinkingDots() {
+  return (
+    <span className="inline-flex ml-0.5">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          animate={{ opacity: [0.2, 1, 0.2] }}
+          transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+        >
+          .
+        </motion.span>
+      ))}
+    </span>
   )
 }
 

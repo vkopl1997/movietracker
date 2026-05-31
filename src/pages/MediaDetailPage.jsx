@@ -76,12 +76,20 @@ function MediaDetailPage({ mediaType }) {
       {/* ─── Content (poster + details) ─── */}
       <div className="max-w-7xl mx-auto px-6 -mt-48 relative">
         <div className="flex flex-col md:flex-row gap-8">
-          {/* Poster (overlapping the backdrop) */}
+          {/* Poster (overlapping the backdrop).
+              - aspect-[2/3] + object-cover force the standard poster ratio so
+                the img never stretches even when the text column is taller.
+              - self-start prevents the flex container from stretching the img
+                to match the column's height. */}
           {data.posterUrl && (
             <img
               src={data.posterUrl}
               alt={data.title}
-              className="w-48 md:w-64 rounded-xl shadow-2xl ring-1 ring-white/10 shrink-0"
+              className="
+                w-48 md:w-64 aspect-[2/3] object-cover
+                rounded-xl shadow-2xl ring-1 ring-white/10
+                shrink-0 self-start
+              "
             />
           )}
 

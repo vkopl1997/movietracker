@@ -219,6 +219,10 @@ function MobileMenu({ open, onClose }) {
                     <span className="text-lg">👥</span>
                     Users
                   </NavLink>
+                  <NavLink to="/pick" onClick={onClose} className={navClass}>
+                    <span className="text-lg">🎲</span>
+                    What should I watch?
+                  </NavLink>
                   {user && (
                     <NavLink to="/favorites" onClick={onClose} className={navClass}>
                       <span className="text-lg text-brand">♥</span>

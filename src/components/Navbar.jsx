@@ -114,6 +114,20 @@ function Navbar() {
             >
               Users
             </NavLink>
+
+            {/* "Pick" tab — visually distinct because it's a *feature*, not a category */}
+            <NavLink
+              to="/pick"
+              className={({ isActive }) =>
+                `px-3 py-1.5 rounded-full text-sm font-semibold transition ${
+                  isActive
+                    ? 'bg-brand text-black'
+                    : 'text-brand hover:bg-brand/10'
+                }`
+              }
+            >
+              🎲 Pick
+            </NavLink>
           </div>
 
           {/* Desktop search — hidden on mobile (search lives in drawer) */}

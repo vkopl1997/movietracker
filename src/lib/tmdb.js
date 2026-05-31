@@ -80,6 +80,38 @@ export async function getUpcomingMovies(region = 'US') {
     }))
 }
 
+// ── Smart pick recommendations ────────────────────────────────────────
+// TMDb /discover/movie with our filter set. Lets us recommend by
+// mood (genre), available time (runtime), and family-friendliness.
+// See https://developer.themoviedb.org/reference/discover-movie for params.
+export async function discoverMovies({
+  genres = [],            // array of TMDb genre ids
+  runtimeMin,
+  runtimeMax,
+  minRating = 6.5,        // skip mediocre stuff
+  minVoteCount = 200,     // skip obscure / unrated movies
+  familyFriendly = false, // limits to PG / lower MPAA where data exists
+  page = 1,
+} = {}) {
+  const params = new URLSearchParams()
+  if (genres.length)             params.set('with_genres', genres.join(','))
+  if (Number.isFinite(runtimeMin)) params.set('with_runtime.gte', String(runtimeMin))
+  if (Number.isFinite(runtimeMax)) params.set('with_runtime.lte', String(runtimeMax))
+  params.set('vote_average.gte', String(minRating))
+  params.set('vote_count.gte',   String(minVoteCount))
+  params.set('sort_by', 'vote_average.desc')
+  params.set('page', String(page))
+  if (familyFriendly) {
+    params.set('certification_country', 'US')
+    params.set('certification.lte', 'PG')
+  }
+
+  const data = await tmdbFetch(`/discover/movie?${params.toString()}`)
+  return (data.results ?? [])
+    .filter((m) => m.poster_path)
+    .map((m) => normalize({ ...m, media_type: 'movie' }))
+}
+
 // Trending TV shows only for the week.
 export async function getTrendingTv() {
   const data = await tmdbFetch('/trending/tv/week')

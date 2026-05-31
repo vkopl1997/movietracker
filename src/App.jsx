@@ -8,6 +8,7 @@ import BrowsePeoplePage from './pages/BrowsePeoplePage'
 import PersonDetailPage from './pages/PersonDetailPage'
 import BrowseUsersPage from './pages/BrowseUsersPage'
 import UserProfilePage from './pages/UserProfilePage'
+import PickPage from './pages/PickPage'
 import './App.css'
 
 function App() {
@@ -25,6 +26,9 @@ function App() {
         {/* App users */}
         <Route path="users"       element={<BrowseUsersPage />} />
         <Route path="user/:id"    element={<UserProfilePage />} />
+
+        {/* Smart pick */}
+        <Route path="pick"        element={<PickPage />} />
 
         <Route
           path="favorites"

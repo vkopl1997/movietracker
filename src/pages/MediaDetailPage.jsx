@@ -173,15 +173,9 @@ function MediaDetailPage({ mediaType }) {
         {/* ─── Where to watch ─── */}
         <WhereToWatch mediaType={mediaType} id={id} title={data.title} />
 
-        {/* ─── More like this ─── */}
-        <HorizontalRow title="More like this" items={data.similar} />
-
-        {/* ─── Recommended ─── */}
-        <HorizontalRow title="Recommended for you" items={data.recommendations} />
-
         {/* ─── Cast ─── */}
         {data.cast.length > 0 && (
-          <section className="pb-16">
+          <section className="mb-12">
             <h2 className="text-xl font-bold mb-5">Cast</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-4">
               {data.cast.map((person) => (
@@ -227,6 +221,14 @@ function MediaDetailPage({ mediaType }) {
             </div>
           </section>
         )}
+
+        {/* ─── More like this ─── */}
+        <HorizontalRow title="More like this" items={data.similar} />
+
+        {/* ─── Recommended ─── */}
+        <div className="pb-16">
+          <HorizontalRow title="Recommended for you" items={data.recommendations} />
+        </div>
       </div>
 
       {/* Trailer modal — mounted at the bottom so AnimatePresence handles

@@ -149,7 +149,7 @@ function MediaDetailPage({ mediaType }) {
         </div>
 
         {/* ─── Where to watch ─── */}
-        <WhereToWatch mediaType={mediaType} id={id} />
+        <WhereToWatch mediaType={mediaType} id={id} title={data.title} />
 
         {/* ─── Cast ─── */}
         {data.cast.length > 0 && (

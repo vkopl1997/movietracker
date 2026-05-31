@@ -44,39 +44,44 @@ function TrailerModal({ videoKey, title, onClose }) {
       aria-modal="true"
       aria-label={`Trailer for ${title}`}
     >
+      {/* Inner wrapper holds both the close button and the player as siblings,
+          so the X sits OUTSIDE the iframe and doesn't overlap YouTube's controls. */}
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        // Stop clicks inside the player from bubbling to the backdrop (which would close).
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-5xl aspect-video bg-black rounded-xl overflow-hidden shadow-2xl cursor-default"
+        className="relative w-full max-w-5xl cursor-default"
       >
-        {/* Close button (top-right, over the video) */}
+        {/* Close button — floats ABOVE the player, top-right of the wrapper.
+            Outside the iframe so it can't conflict with YouTube's own controls. */}
         <button
           onClick={onClose}
           aria-label="Close trailer"
           className="
-            absolute top-3 right-3 z-10
-            w-10 h-10 rounded-full
-            bg-black/70 hover:bg-black text-white
-            border border-white/20
-            flex items-center justify-center text-xl
+            absolute -top-12 right-0
+            flex items-center gap-2
+            px-4 h-10 rounded-full
+            bg-white/10 hover:bg-white/20 text-white text-sm font-medium
+            border border-white/20 backdrop-blur
             transition
           "
         >
-          ×
+          <span className="text-base leading-none">×</span>
+          Close
         </button>
 
         {/* YouTube embed with autoplay */}
-        <iframe
-          src={`https://www.youtube.com/embed/${videoKey}?autoplay=1&rel=0`}
-          title={`${title} trailer`}
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowFullScreen
-          className="w-full h-full"
-        />
+        <div className="aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+          <iframe
+            src={`https://www.youtube.com/embed/${videoKey}?autoplay=1&rel=0`}
+            title={`${title} trailer`}
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full"
+          />
+        </div>
       </motion.div>
     </motion.div>
   )

@@ -157,9 +157,9 @@ function PickPage() {
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-      <header className="text-center mb-10">
-        <div className="text-xs font-bold tracking-[0.25em] text-brand uppercase mb-2 flex items-center justify-center gap-1.5">
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <header className="text-center mb-4">
+        <div className="text-[11px] font-bold tracking-[0.25em] text-brand uppercase mb-1 flex items-center justify-center gap-1.5">
           <motion.span
             animate={{ rotate: [0, 15, -10, 0], scale: [1, 1.2, 1] }}
             transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
@@ -168,10 +168,10 @@ function PickPage() {
           </motion.span>
           AI Pick
         </div>
-        <h1 className="font-display text-5xl sm:text-6xl tracking-[0.02em] mb-2">
+        <h1 className="font-display text-3xl sm:text-4xl tracking-[0.02em] mb-1">
           What should I watch?
         </h1>
-        <p className="text-neutral-500 dark:text-white/60">
+        <p className="text-sm text-neutral-500 dark:text-white/60">
           Two quick questions — we'll find tonight's pick.
         </p>
       </header>
@@ -187,15 +187,14 @@ function PickPage() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
           >
-            <p className="text-center mb-6 text-sm text-neutral-500 dark:text-white/60">
+            <p className="text-center mb-3 text-xs sm:text-sm text-neutral-500 dark:text-white/60">
               For a <strong>{MOODS.find((m) => m.value === mood)?.label.toLowerCase()}</strong>{' '}
               watch {COMPANY.find((c) => c.value === company)?.label.toLowerCase()}:
             </p>
 
-            {/* Card area: swap between skeletons (loading) and real cards (loaded).
-                AnimatePresence with mode='wait' makes the swap smooth — old leaves
-                completely before the new enters. */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8 min-h-[400px]">
+            {/* Compact card grid — narrower max-width keeps cards small enough
+                that the whole page fits without scrolling on standard desktops. */}
+            <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-4 max-w-xl mx-auto">
               <AnimatePresence mode="wait">
                 {loading ? (
                   // SHIMMERING SKELETONS — three pulsing placeholders, same shape as the cards
@@ -247,7 +246,7 @@ function PickPage() {
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.6 + idx * 0.18, duration: 0.4 }}
-                        className="mt-3 text-xs text-neutral-600 dark:text-white/70 leading-relaxed px-1"
+                        className="mt-2 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-3"
                       >
                         {reasonFor(pick, mood, company)}
                       </motion.p>
@@ -258,7 +257,7 @@ function PickPage() {
             </div>
 
             {/* Action buttons — ALWAYS visible, never unmount during loading */}
-            <div className="flex flex-wrap justify-center gap-3 mb-2">
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-1">
               <motion.button
                 onClick={generate}
                 disabled={loading}
@@ -319,7 +318,7 @@ function PickPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-10"
+            className="space-y-6"
           >
             <Step n="1" question="What's your mood?" active={step >= 1}>
               <Choices

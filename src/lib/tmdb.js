@@ -63,6 +63,9 @@ function normalize(item) {
     rating: typeof item.vote_average === 'number'
       ? Math.round(item.vote_average * 10) / 10
       : null,
+    // Preserve genre ids (returned by /discover and most list endpoints) so
+    // downstream features (Pick tags, smart filters) can map them to names.
+    genreIds: Array.isArray(item.genre_ids) ? item.genre_ids : [],
   }
 }
 

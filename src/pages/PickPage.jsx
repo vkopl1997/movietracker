@@ -22,6 +22,44 @@ const GENRE = {
   scifi:  878,   thriller: 53,    war: 10752,    western: 37,
 }
 
+// Reverse map: TMDb genre id → short kebab name we use in #tags
+const GENRE_TAG = {
+  28: 'action',  12: 'adventure', 16: 'animation', 35: 'comedy',
+  80: 'crime',   99: 'documentary', 18: 'drama',    10751: 'family',
+  14: 'fantasy', 36: 'history',  27: 'horror',     10402: 'music',
+  9648: 'mystery', 10749: 'romance', 878: 'scifi', 53: 'thriller',
+  10752: 'war',    37: 'western', 10770: 'tv',
+}
+
+// Derive a small set of hashtags for a pick so users see WHY it was chosen
+// at a glance. Tags are pulled from real data (TMDb genres, rating, year)
+// plus the user's mood/company answers.
+function tagsFor(pick, mood, company) {
+  const tags = []
+
+  // 2 genre tags
+  for (const id of (pick.genreIds || []).slice(0, 2)) {
+    if (GENRE_TAG[id]) tags.push(GENRE_TAG[id])
+  }
+
+  // Quality
+  if (pick.rating >= 8)        tags.push('critically-loved')
+  else if (pick.rating >= 7.5) tags.push('highly-rated')
+
+  // Era — only when it's notable
+  const y = pick.year
+  if (y && y < 1990)       tags.push('classic')
+  else if (y && y >= 2020) tags.push('fresh')
+
+  // Company match
+  if (company === 'family')        tags.push('family-friendly')
+  else if (company === 'partner')  tags.push('date-night')
+  else if (company === 'friends')  tags.push('group-watch')
+
+  // Cap at 5 unique tags
+  return [...new Set(tags)].slice(0, 5)
+}
+
 const MOODS = [
   { value: 'funny',    emoji: '😄', label: 'Funny / happy',       genres: [GENRE.comedy, GENRE.animation, GENRE.family] },
   { value: 'intense',  emoji: '😱', label: 'Intense / thrilling',  genres: [GENRE.thriller, GENRE.action, GENRE.crime, GENRE.mystery] },
@@ -217,11 +255,35 @@ function PickPage() {
                       style={{ perspective: 800 }}
                     >
                       <MediaCard {...pick} />
+
+                      {/* Hashtag row — appears just after the card */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 + idx * 0.18, duration: 0.35 }}
+                        className="mt-2 flex flex-wrap justify-center gap-1 px-0.5"
+                      >
+                        {tagsFor(pick, mood, company).map((tag) => (
+                          <span
+                            key={tag}
+                            className="
+                              text-[9px] sm:text-[10px] font-medium
+                              text-brand bg-brand/10
+                              border border-brand/20
+                              px-1.5 py-0.5 rounded-full
+                              leading-none whitespace-nowrap
+                            "
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                      </motion.div>
+
                       <motion.p
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6 + idx * 0.18, duration: 0.4 }}
-                        className="mt-2 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-3"
+                        transition={{ delay: 0.7 + idx * 0.18, duration: 0.4 }}
+                        className="mt-1.5 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
                       >
                         {reasonFor(pick, mood, company)}
                       </motion.p>
@@ -480,9 +542,26 @@ function SkeletonPickCard({ index = 0 }) {
         </div>
       </div>
 
-      {/* ─── Reasoning placeholder: three shimmering lines ─── */}
-      <div className="mt-3 space-y-1.5 flex flex-col items-center">
-        {lines.map((w, j) => (
+      {/* ─── Hashtag placeholders ─── */}
+      <div className="mt-2 flex flex-wrap justify-center gap-1">
+        {['48px', '56px', '40px'].map((w, j) => (
+          <div
+            key={`tag-${j}`}
+            className="relative h-3.5 rounded-full bg-brand/10 border border-brand/20 overflow-hidden"
+            style={{ width: w }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/30 to-transparent"
+              animate={{ x: ['-100%', '300%'] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: index * 0.2 + j * 0.1 }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* ─── Reasoning placeholder: two shimmering lines ─── */}
+      <div className="mt-1.5 space-y-1.5 flex flex-col items-center">
+        {lines.slice(0, 2).map((w, j) => (
           <div
             key={j}
             className="relative h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"

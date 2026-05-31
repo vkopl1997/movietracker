@@ -6,8 +6,8 @@
 //
 // This avoids the bug where results were hidden behind the drawer's high z-index.
 
-import { startTransition, useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
 import { useTheme } from '../lib/ThemeContext'
@@ -18,9 +18,11 @@ function MobileMenu({ open, onClose }) {
   const { user, signInWithGoogle, signOut } = useAuth()
   const { theme, toggleTheme } = useTheme()
 
-  const [searchParams, setSearchParams] = useSearchParams()
+  // The drawer holds its OWN search state — independent of the URL.
+  // This way typing here doesn't trigger BrowsePage to refetch in the background.
+  // The URL is only updated when the user *commits* by clicking "See all results".
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const location = useLocation()
   const urlQuery = searchParams.get('q') || ''
   const [localValue, setLocalValue] = useState(urlQuery)
   const inputRef = useRef(null)
@@ -74,28 +76,26 @@ function MobileMenu({ open, onClose }) {
     }
   }, [open, onClose])
 
+  // Drawer search is local-only. NO URL update here.
   function onSearchChange(value) {
     setLocalValue(value)
-    startTransition(() => {
-      if (location.pathname !== '/') {
-        navigate(value ? `/?q=${encodeURIComponent(value)}` : '/')
-        return
-      }
-      if (value) setSearchParams({ q: value })
-      else setSearchParams({})
-    })
   }
 
   function clearSearch() {
     setLocalValue('')
-    setSearchParams({})
     inputRef.current?.focus()
   }
 
-  // Navigate to a result and close the drawer
+  // Navigate to a specific result. No need to commit query to URL — user picked an item.
   function pickResult(item) {
     onClose()
     navigate(`/${item.mediaType}/${item.id}`)
+  }
+
+  // "See all results" — THIS is the commit. Updates URL → BrowsePage fetches.
+  function seeAllResults() {
+    onClose()
+    navigate(`/?q=${encodeURIComponent(searchTerm)}`)
   }
 
   const navClass = ({ isActive }) =>
@@ -200,7 +200,7 @@ function MobileMenu({ open, onClose }) {
                 results={results}
                 onPick={pickResult}
                 query={searchTerm}
-                onSeeAll={() => onClose()}
+                onSeeAll={seeAllResults}
               />
             ) : (
               <>

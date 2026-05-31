@@ -10,17 +10,18 @@
 import { supabase } from './supabase'
 
 // ── Fetch ────────────────────────────────────────────────────────────
-// Fetch the CURRENT user's media (RLS picks up auth.uid() automatically when
-// no .eq() filter is set).
+// Fetch the CURRENT user's media.
+//
+// IMPORTANT: We must explicitly filter by user_id now. Originally RLS
+// did this for us ("Read own favorites" policy), but when we opened
+// SELECT up to be publicly readable (so user profile pages can work),
+// this query started returning EVERY user's rows. Without the explicit
+// .eq('user_id', ...) below, your own library would show everyone's
+// favorites lumped together.
 export async function fetchUserMedia() {
-  const { data, error } = await supabase
-    .from('user_favorites')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (error) throw error
-
-  return data.map(rowToItem)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+  return fetchUserMediaByUserId(user.id)
 }
 
 // Fetch ANY user's media by their auth uuid. Used for public profile pages.

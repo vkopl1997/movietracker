@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { getWatchProviders, PROVIDER_LOGO_BASE } from '../lib/tmdb'
+import CountryPicker from './CountryPicker'
 
 const STORAGE_KEY = 'mt_country'
 
@@ -92,17 +93,16 @@ function WhereToWatch({ mediaType, id, title }) {
     try { localStorage.setItem(STORAGE_KEY, country) } catch {}
   }, [country])
 
-  const availableCountries = useMemo(() => {
-    if (!providers) return []
-    const top = ['US', 'GB', 'GE', 'DE', 'FR', 'NL', 'ES', 'IT']
-    const all = Object.keys(providers).sort()
-    const topInData = top.filter((c) => all.includes(c))
-    const rest = all.filter((c) => !top.includes(c))
-    return [...topInData, ...rest]
-  }, [providers])
+  // Countries that have ANY provider data for this title.
+  // The picker is searchable across all countries, but uses this list to
+  // grey out the ones that won't show anything useful when selected.
+  const countriesWithData = useMemo(
+    () => providers ? Object.keys(providers) : [],
+    [providers]
+  )
 
   if (loading) return null
-  if (!providers || availableCountries.length === 0) return null
+  if (!providers) return null
 
   const regionData = providers[country]
 
@@ -111,23 +111,11 @@ function WhereToWatch({ mediaType, id, title }) {
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-4">
         <h2 className="text-xl font-bold">Where to watch</h2>
 
-        <select
+        <CountryPicker
           value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          className="
-            px-3 py-1.5 rounded-full text-sm
-            bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-            border border-black/10 dark:border-white/10
-            text-neutral-700 dark:text-white/70
-            focus:outline-none focus:border-brand transition
-          "
-        >
-          {availableCountries.map((c) => (
-            <option key={c} value={c}>
-              {countryFlag(c)} {countryName(c)}
-            </option>
-          ))}
-        </select>
+          onChange={setCountry}
+          withData={countriesWithData}
+        />
       </div>
 
       {!regionData && (

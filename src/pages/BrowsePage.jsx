@@ -5,6 +5,8 @@ import MediaCard from '../components/MediaCard'
 import Hero from '../components/Hero'
 import UpcomingRow from '../components/UpcomingRow'
 import PopularPeopleRow from '../components/PopularPeopleRow'
+import { TrendingTvRow, TopRatedMoviesRow } from '../components/HomeContentRows'
+import TopUsersRow from '../components/TopUsersRow'
 import { SkeletonGrid } from '../components/SkeletonCard'
 import { getTrending, searchMulti } from '../lib/tmdb'
 import { gridContainer, cardVariant } from '../lib/motion'
@@ -66,10 +68,12 @@ function BrowsePage() {
     }
   }, [searchQuery])
 
-  // Use top 5 trending as the slider when not searching.
-  // The grid below starts from item #6 so we don't duplicate hero items.
+  // Use top 5 trending as the hero slider.
+  // The grid shows the NEXT 10 (so 15 items total on the home view).
   const heroItems = !searchQuery && media.length > 0 ? media.slice(0, 5) : []
-  const gridItems = heroItems.length > 0 ? media.slice(heroItems.length) : media
+  const gridItems = heroItems.length > 0
+    ? media.slice(heroItems.length, heroItems.length + 10)
+    : media
 
   return (
     <>
@@ -122,6 +126,9 @@ function BrowsePage() {
           <>
             <UpcomingRow />
             <PopularPeopleRow />
+            <TrendingTvRow />
+            <TopRatedMoviesRow />
+            <TopUsersRow />
           </>
         )}
       </main>

@@ -80,6 +80,22 @@ export async function getUpcomingMovies(region = 'US') {
     }))
 }
 
+// Trending TV shows only for the week.
+export async function getTrendingTv() {
+  const data = await tmdbFetch('/trending/tv/week')
+  return (data.results ?? [])
+    .map((item) => normalize({ ...item, media_type: 'tv' }))
+    .filter((i) => i.posterUrl)
+}
+
+// All-time top-rated movies (TMDb's curated list — the "IMDb Top 250" equivalent).
+export async function getTopRatedMovies() {
+  const data = await tmdbFetch('/movie/top_rated')
+  return (data.results ?? [])
+    .map((item) => normalize({ ...item, media_type: 'movie' }))
+    .filter((i) => i.posterUrl)
+}
+
 // Trending movies + TV shows for the week (mixed).
 export async function getTrending() {
   const data = await tmdbFetch('/trending/all/week')

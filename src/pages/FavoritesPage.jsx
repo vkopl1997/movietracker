@@ -1,12 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
 import { useFavorites } from '../lib/FavoritesContext'
+import { supabase } from '../lib/supabase'
 import MediaCard from '../components/MediaCard'
 import { SkeletonGrid } from '../components/SkeletonCard'
+import LikeButton from '../components/LikeButton'
 import { gridContainer, cardVariant } from '../lib/motion'
 import { usePageTitle } from '../lib/usePageTitle'
+
+// Format a join-month label: "Joined May 2026"
+function joinedLabel(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
+}
 
 // Tabs:
 //   all       → everything you've interacted with
@@ -42,6 +51,26 @@ function FavoritesPage() {
   const [type, setType]     = useState('all')     // 'all' | 'movie' | 'tv'
   const [sort, setSort]     = useState('recent')
 
+  // Profile header data (joined date + like count for the current user)
+  const [joinedAt, setJoinedAt]   = useState(null)
+  const [likeCount, setLikeCount] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    Promise.all([
+      supabase.from('profiles').select('created_at').eq('id', user.id).maybeSingle(),
+      supabase.from('user_likes').select('liker_id', { count: 'exact', head: true }).eq('liked_id', user.id),
+    ])
+      .then(([profileRes, likesRes]) => {
+        if (cancelled) return
+        setJoinedAt(profileRes.data?.created_at || user.created_at || null)
+        setLikeCount(likesRes.count || 0)
+      })
+      .catch(() => { /* non-fatal — header just shows defaults */ })
+    return () => { cancelled = true }
+  }, [user])
+
   // Pick the base list for the current tab
   const baseList =
     tab === 'favorites' ? favorites :
@@ -73,12 +102,61 @@ function FavoritesPage() {
     watchlist: watchlist.length,
   }
 
+  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'You'
+  const avatarUrl   = user?.user_metadata?.avatar_url || user?.user_metadata?.picture
+  const initial     = displayName.trim().charAt(0).toUpperCase() || '?'
+
   return (
-    <main className="max-w-7xl mx-auto px-6 py-12">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">My Library</h1>
-        <p className="text-neutral-500 dark:text-white/50 text-sm">{user?.email}</p>
-      </header>
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      {/* ── Profile header — mirrors UserProfilePage layout ────────── */}
+      <section className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-10">
+        <div className="
+          shrink-0 w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden
+          ring-1 ring-black/10 dark:ring-white/10 shadow-xl
+        ">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover"
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-6xl font-display text-brand bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-800">
+              {initial}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0 text-center sm:text-left">
+          <h1 className="font-display text-4xl sm:text-5xl tracking-[0.02em] leading-tight mb-2">
+            {displayName}
+          </h1>
+          {joinedAt && (
+            <p className="text-sm text-neutral-500 dark:text-white/50 mb-4">
+              Joined {joinedLabel(joinedAt)}
+            </p>
+          )}
+
+          {/* Likes — disabled (self) but still shows the count */}
+          <div className="mb-4 flex justify-center sm:justify-start">
+            <LikeButton
+              targetUserId={user?.id}
+              likeCount={likeCount}
+              likedByMe={false}
+              size="lg"
+            />
+          </div>
+
+          {/* Stat pills */}
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+            <StatPill icon="♥" label="favorites" value={favorites.length} color="text-brand" />
+            <StatPill icon="✓" label="watched"   value={watched.length}   color="text-emerald-500" />
+            <StatPill icon="🔖" label="watchlist" value={watchlist.length} color="text-sky-500" />
+          </div>
+        </div>
+      </section>
 
       {/* Status tabs */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
@@ -196,6 +274,22 @@ function emptyMessage(tab, type) {
   if (tab === 'watched')   return `No watched ${what} yet`
   if (tab === 'watchlist') return `Your watchlist is empty`
   return `Nothing in your library yet`
+}
+
+// Same StatPill used on UserProfilePage. Inlined here to keep pages independent.
+function StatPill({ icon, label, value, color }) {
+  return (
+    <span className="
+      inline-flex items-center gap-1.5 px-3 py-1 rounded-full
+      bg-black/5 dark:bg-white/5
+      border border-black/10 dark:border-white/10
+      text-sm
+    ">
+      <span className={color}>{icon}</span>
+      <strong className="font-semibold">{value}</strong>
+      <span className="text-neutral-500 dark:text-white/50 text-xs">{label}</span>
+    </span>
+  )
 }
 
 export default FavoritesPage

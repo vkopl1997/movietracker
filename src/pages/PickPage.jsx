@@ -75,6 +75,7 @@ function PickPage() {
   const [picks, setPicks]     = useState(null)
   const [error, setError]     = useState(null)
   const [round, setRound]     = useState(0)   // bumps each "Pick again" — drives AnimatePresence key
+  const [hasPicked, setHasPicked] = useState(false)   // once true, we never leave the results layout
 
   const [seenIds, setSeenIds] = useState(() => new Set())
   const [sortIdx, setSortIdx] = useState(0)
@@ -86,7 +87,10 @@ function PickPage() {
 
   async function generate() {
     if (!mood || !company) return
-    setLoading(true); setError(null); setPicks(null)
+    setLoading(true); setError(null)
+    // Keep the existing picks visible while loading the next round (only the
+    // VERY first call has no picks to keep — that one shows the full loader).
+    if (!hasPicked) setPicks(null)
 
     const moodOpt    = MOODS.find((m) => m.value === mood)    || {}
     const companyOpt = COMPANY.find((c) => c.value === company) || {}
@@ -131,6 +135,7 @@ function PickPage() {
 
       const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
       setPicks(shuffled)
+      setHasPicked(true)
       setSeenIds((prev) => {
         const next = new Set(prev)
         for (const m of shuffled) next.add(m.id)
@@ -147,7 +152,7 @@ function PickPage() {
 
   function reset() {
     setStep(1); setMood(null); setCompany(null); setPicks(null); setError(null)
-    setSeenIds(new Set()); setSortIdx(0); setRound(0)
+    setSeenIds(new Set()); setSortIdx(0); setRound(0); setHasPicked(false)
   }
 
   // ── Render ────────────────────────────────────────────────────────
@@ -173,9 +178,10 @@ function PickPage() {
 
       {/* One AnimatePresence at the top so form→loading→results crossfade cleanly */}
       <AnimatePresence mode="wait">
-        {picks ? (
+        {hasPicked ? (
+          // ─── RESULTS LAYOUT (stays mounted across Pick again) ───────
           <motion.section
-            key={`results-${round}`}
+            key="results"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, y: -20 }}
@@ -186,58 +192,105 @@ function PickPage() {
               watch {COMPANY.find((c) => c.value === company)?.label.toLowerCase()}:
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-              {picks.map((pick, idx) => (
-                <motion.div
-                  key={`${round}-${pick.id}`}
-                  initial={{ opacity: 0, y: 80, rotateX: 25, scale: 0.85 }}
-                  animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 220,
-                    damping: 22,
-                    delay: idx * 0.18,
-                  }}
-                  className="text-center"
-                  style={{ perspective: 800 }}
-                >
-                  <MediaCard {...pick} />
-                  <motion.p
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 + idx * 0.18, duration: 0.4 }}
-                    className="mt-3 text-xs text-neutral-600 dark:text-white/70 leading-relaxed px-1"
-                  >
-                    {reasonFor(pick, mood, company)}
-                  </motion.p>
-                </motion.div>
-              ))}
+            {/* Card area: swap between skeletons (loading) and real cards (loaded).
+                AnimatePresence with mode='wait' makes the swap smooth — old leaves
+                completely before the new enters. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8 min-h-[400px]">
+              <AnimatePresence mode="wait">
+                {loading ? (
+                  // SHIMMERING SKELETONS — three pulsing placeholders, same shape as the cards
+                  [0, 1, 2].map((i) => (
+                    <motion.div
+                      key={`skel-${round}-${i}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: i * 0.08, duration: 0.2 }}
+                      className="text-center"
+                    >
+                      <div className="aspect-[2/3] rounded-xl overflow-hidden bg-neutral-200 dark:bg-neutral-900 ring-1 ring-black/5 dark:ring-white/5 relative">
+                        <motion.div
+                          className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/20 to-transparent"
+                          animate={{ x: ['-100%', '100%'] }}
+                          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.2 }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-30">✨</div>
+                      </div>
+                      <div className="mt-3 mx-auto h-3 rounded-full bg-neutral-200 dark:bg-neutral-800 w-3/4 overflow-hidden">
+                        <motion.div
+                          className="h-full w-1/3 bg-gradient-to-r from-transparent via-brand/30 to-transparent"
+                          animate={{ x: ['-100%', '400%'] }}
+                          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.2 + 0.3 }}
+                        />
+                      </div>
+                    </motion.div>
+                  ))
+                ) : picks ? (
+                  // REAL CARDS — dealt-in animation by round (changes each Pick again)
+                  picks.map((pick, idx) => (
+                    <motion.div
+                      key={`pick-${round}-${pick.id}`}
+                      initial={{ opacity: 0, y: 80, rotateX: 25, scale: 0.85 }}
+                      animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -40, scale: 0.95 }}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 220,
+                        damping: 22,
+                        delay: idx * 0.18,
+                      }}
+                      className="text-center"
+                      style={{ perspective: 800 }}
+                    >
+                      <MediaCard {...pick} />
+                      <motion.p
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 + idx * 0.18, duration: 0.4 }}
+                        className="mt-3 text-xs text-neutral-600 dark:text-white/70 leading-relaxed px-1"
+                      >
+                        {reasonFor(pick, mood, company)}
+                      </motion.p>
+                    </motion.div>
+                  ))
+                ) : null}
+              </AnimatePresence>
             </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.1 }}
-              className="flex flex-wrap justify-center gap-3 mb-2"
-            >
+            {/* Action buttons — ALWAYS visible, never unmount during loading */}
+            <div className="flex flex-wrap justify-center gap-3 mb-2">
               <motion.button
                 onClick={generate}
                 disabled={loading}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                className="px-5 py-2.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition disabled:opacity-60 shadow-lg shadow-brand/30"
+                whileHover={loading ? {} : { scale: 1.04 }}
+                whileTap={loading ? {} : { scale: 0.96 }}
+                className="px-5 py-2.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition disabled:opacity-60 disabled:cursor-wait shadow-lg shadow-brand/30 flex items-center gap-2"
               >
-                ✨ Pick again
+                {loading ? (
+                  <>
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      className="inline-block"
+                    >
+                      ✨
+                    </motion.span>
+                    Picking…
+                  </>
+                ) : (
+                  <>✨ Pick again</>
+                )}
               </motion.button>
               <motion.button
                 onClick={reset}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                className="px-5 py-2.5 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-sm transition"
+                disabled={loading}
+                whileHover={loading ? {} : { scale: 1.04 }}
+                whileTap={loading ? {} : { scale: 0.96 }}
+                className="px-5 py-2.5 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-sm transition disabled:opacity-50"
               >
                 Start over
               </motion.button>
-            </motion.div>
+            </div>
 
             <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
               {seenIds.size} {seenIds.size === 1 ? 'movie' : 'movies'} excluded from future picks this session.

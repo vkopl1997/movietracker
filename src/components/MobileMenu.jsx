@@ -220,7 +220,7 @@ function MobileMenu({ open, onClose }) {
                     Users
                   </NavLink>
                   <NavLink to="/pick" onClick={onClose} className={navClass}>
-                    <span className="text-lg">🎲</span>
+                    <span className="text-lg">✨</span>
                     What should I watch?
                   </NavLink>
                   {user && (

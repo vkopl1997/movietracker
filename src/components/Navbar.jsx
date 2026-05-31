@@ -115,18 +115,26 @@ function Navbar() {
               Users
             </NavLink>
 
-            {/* "Pick" tab — visually distinct because it's a *feature*, not a category */}
+            {/* "Pick" tab — small AI sparkle above the word. */}
             <NavLink
               to="/pick"
               className={({ isActive }) =>
-                `px-3 py-1.5 rounded-full text-sm font-semibold transition ${
+                `relative px-3 py-1.5 rounded-full text-sm font-semibold transition ${
                   isActive
                     ? 'bg-brand text-black'
                     : 'text-brand hover:bg-brand/10'
                 }`
               }
             >
-              🎲 Pick
+              {/* Floating sparkle indicator — sits just above the label */}
+              <span
+                aria-hidden="true"
+                className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[12px] leading-none animate-pulse"
+                style={{ filter: 'drop-shadow(0 0 6px rgba(212,175,55,0.6))' }}
+              >
+                ✨
+              </span>
+              Pick
             </NavLink>
           </div>
 

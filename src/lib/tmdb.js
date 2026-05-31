@@ -85,21 +85,26 @@ export async function getUpcomingMovies(region = 'US') {
 // mood (genre), available time (runtime), and family-friendliness.
 // See https://developer.themoviedb.org/reference/discover-movie for params.
 export async function discoverMovies({
-  genres = [],            // array of TMDb genre ids
+  genres = [],              // array of TMDb genre ids
   runtimeMin,
   runtimeMax,
-  minRating = 6.5,        // skip mediocre stuff
-  minVoteCount = 200,     // skip obscure / unrated movies
-  familyFriendly = false, // limits to PG / lower MPAA where data exists
+  minRating = 6.5,          // skip mediocre stuff
+  minVoteCount = 200,       // skip obscure / unrated movies
+  familyFriendly = false,   // limits to PG / lower MPAA where data exists
+  releaseBefore,            // year — for "classic" mood
+  releaseAfter,             // year — for "modern" mood
+  sortBy = 'vote_average.desc',
   page = 1,
 } = {}) {
   const params = new URLSearchParams()
-  if (genres.length)             params.set('with_genres', genres.join(','))
+  if (genres.length)               params.set('with_genres', genres.join(','))
   if (Number.isFinite(runtimeMin)) params.set('with_runtime.gte', String(runtimeMin))
   if (Number.isFinite(runtimeMax)) params.set('with_runtime.lte', String(runtimeMax))
+  if (Number.isFinite(releaseBefore)) params.set('primary_release_date.lte', `${releaseBefore}-12-31`)
+  if (Number.isFinite(releaseAfter))  params.set('primary_release_date.gte', `${releaseAfter}-01-01`)
   params.set('vote_average.gte', String(minRating))
   params.set('vote_count.gte',   String(minVoteCount))
-  params.set('sort_by', 'vote_average.desc')
+  params.set('sort_by', sortBy)
   params.set('page', String(page))
   if (familyFriendly) {
     params.set('certification_country', 'US')

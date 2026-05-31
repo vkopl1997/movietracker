@@ -1,18 +1,17 @@
 // MobileMenu — slide-in drawer for navigation + search on phones.
 //
-// Only mounted/rendered on small screens. Trigger is a burger button in Navbar.
+// Two modes inside the drawer:
+//   - Idle (no search query): brand + nav links + theme + auth
+//   - Searching: brand + search input + LIVE RESULTS LIST (nav/footer hidden)
 //
-// Patterns used:
-//   - Portal-style fixed-position drawer (right side, full height)
-//   - AnimatePresence so it animates in AND out
-//   - Body scroll lock while open (same trick as TrailerModal)
-//   - Escape key + backdrop click + nav-link click all close it
+// This avoids the bug where results were hidden behind the drawer's high z-index.
 
 import { startTransition, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
 import { useTheme } from '../lib/ThemeContext'
+import { searchMulti } from '../lib/tmdb'
 import Logo from './Logo'
 
 function MobileMenu({ open, onClose }) {
@@ -26,30 +25,53 @@ function MobileMenu({ open, onClose }) {
   const [localValue, setLocalValue] = useState(urlQuery)
   const inputRef = useRef(null)
 
-  // Sync local input with URL query when drawer is opened
+  // ── Inline search results ──────────────────────────────────────────
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  const searchTerm = localValue.trim()
+  const isSearching = searchTerm.length > 0
+
+  // Fetch live results when typing (debounced).
+  // Same pattern as BrowsePage but capped at 8 items for compactness.
+  useEffect(() => {
+    if (!open || !isSearching) {
+      setResults([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      setLoading(true)
+      searchMulti(searchTerm)
+        .then((items) => {
+          if (!cancelled) setResults(items.slice(0, 8))
+        })
+        .catch(() => { if (!cancelled) setResults([]) })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [open, isSearching, searchTerm])
+
+  // Sync local input with URL when drawer opens
   useEffect(() => {
     if (open) {
       setLocalValue(urlQuery)
-      // small delay so the animation can start before focus pulls keyboard up on mobile
       const t = setTimeout(() => inputRef.current?.focus(), 200)
       return () => clearTimeout(t)
     }
   }, [open, urlQuery])
 
-  // Lock body scroll while open
+  // Body scroll lock + Escape close
   useEffect(() => {
     if (!open) return
     const original = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = original }
-  }, [open])
-
-  // Escape closes
-  useEffect(() => {
-    if (!open) return
     function onKey(e) { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = original
+      document.removeEventListener('keydown', onKey)
+    }
   }, [open, onClose])
 
   function onSearchChange(value) {
@@ -64,7 +86,18 @@ function MobileMenu({ open, onClose }) {
     })
   }
 
-  // NavLink class generator — active = filled brand, inactive = subtle
+  function clearSearch() {
+    setLocalValue('')
+    setSearchParams({})
+    inputRef.current?.focus()
+  }
+
+  // Navigate to a result and close the drawer
+  function pickResult(item) {
+    onClose()
+    navigate(`/${item.mediaType}/${item.id}`)
+  }
+
   const navClass = ({ isActive }) =>
     `flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition ${
       isActive
@@ -76,7 +109,6 @@ function MobileMenu({ open, onClose }) {
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop — clicking it closes the drawer */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -86,7 +118,6 @@ function MobileMenu({ open, onClose }) {
             className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm md:hidden"
           />
 
-          {/* Drawer panel — slides in from the right */}
           <motion.aside
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
@@ -124,93 +155,202 @@ function MobileMenu({ open, onClose }) {
               </button>
             </div>
 
-            {/* Search */}
+            {/* Search input */}
             <div className="px-4 py-4 border-b border-black/5 dark:border-white/10">
-              <input
-                ref={inputRef}
-                type="text"
-                value={localValue}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search movies & TV shows…"
-                className="
-                  w-full px-4 py-3 rounded-full text-base
-                  bg-black/5 dark:bg-white/5
-                  border border-black/10 dark:border-white/10
-                  text-neutral-900 dark:text-white
-                  placeholder:text-neutral-400 dark:placeholder:text-white/40
-                  focus:outline-none focus:border-brand
-                  transition
-                "
-              />
-            </div>
-
-            {/* Nav links */}
-            <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-              <NavLink to="/" end onClick={onClose} className={navClass}>
-                <span className="text-lg">🎬</span>
-                Browse
-              </NavLink>
-
-              {user && (
-                <NavLink to="/favorites" onClick={onClose} className={navClass}>
-                  <span className="text-lg text-brand">♥</span>
-                  My Library
-                </NavLink>
-              )}
-            </nav>
-
-            {/* Footer: theme toggle + auth action */}
-            <div className="px-4 py-4 border-t border-black/5 dark:border-white/10 space-y-3">
-              <button
-                onClick={toggleTheme}
-                className="
-                  w-full flex items-center justify-between px-4 py-3 rounded-xl text-base
-                  bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-                  border border-black/10 dark:border-white/10
-                  transition
-                "
-              >
-                <span className="text-neutral-700 dark:text-white/80">
-                  {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                </span>
-                <span className="text-xl">{theme === 'dark' ? '☀️' : '🌙'}</span>
-              </button>
-
-              {user ? (
-                <button
-                  onClick={() => { onClose(); signOut() }}
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={localValue}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  placeholder="Search movies & TV shows…"
                   className="
-                    w-full px-4 py-3 rounded-xl text-base font-medium
-                    bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
+                    w-full px-4 py-3 pr-10 rounded-full text-base
+                    bg-black/5 dark:bg-white/5
                     border border-black/10 dark:border-white/10
-                    text-neutral-700 dark:text-white/80 transition
-                  "
-                >
-                  Sign out
-                </button>
-              ) : (
-                <button
-                  onClick={() => { onClose(); signInWithGoogle() }}
-                  className="
-                    w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                    bg-brand hover:bg-brand-light text-black font-semibold text-base
+                    text-neutral-900 dark:text-white
+                    placeholder:text-neutral-400 dark:placeholder:text-white/40
+                    focus:outline-none focus:border-brand
                     transition
                   "
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 48 48">
-                    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/>
-                    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
-                    <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.4-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
-                    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
-                  </svg>
-                  Sign in with Google
-                </button>
-              )}
+                />
+                {isSearching && (
+                  <button
+                    onClick={clearSearch}
+                    aria-label="Clear search"
+                    className="
+                      absolute right-2 top-1/2 -translate-y-1/2
+                      w-7 h-7 rounded-full text-lg
+                      bg-black/10 dark:bg-white/10
+                      text-neutral-600 dark:text-white/70
+                      hover:bg-black/20 dark:hover:bg-white/20
+                      flex items-center justify-center transition
+                    "
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* ── Body — toggles between Results and Nav ────────────── */}
+            {isSearching ? (
+              <ResultList
+                loading={loading}
+                results={results}
+                onPick={pickResult}
+                query={searchTerm}
+                onSeeAll={() => onClose()}
+              />
+            ) : (
+              <>
+                <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+                  <NavLink to="/" end onClick={onClose} className={navClass}>
+                    <span className="text-lg">🎬</span>
+                    Browse
+                  </NavLink>
+                  {user && (
+                    <NavLink to="/favorites" onClick={onClose} className={navClass}>
+                      <span className="text-lg text-brand">♥</span>
+                      My Library
+                    </NavLink>
+                  )}
+                </nav>
+
+                {/* Footer: theme + auth */}
+                <div className="px-4 py-4 border-t border-black/5 dark:border-white/10 space-y-3">
+                  <button
+                    onClick={toggleTheme}
+                    className="
+                      w-full flex items-center justify-between px-4 py-3 rounded-xl text-base
+                      bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
+                      border border-black/10 dark:border-white/10
+                      transition
+                    "
+                  >
+                    <span className="text-neutral-700 dark:text-white/80">
+                      {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                    </span>
+                    <span className="text-xl">{theme === 'dark' ? '☀️' : '🌙'}</span>
+                  </button>
+
+                  {user ? (
+                    <button
+                      onClick={() => { onClose(); signOut() }}
+                      className="
+                        w-full px-4 py-3 rounded-xl text-base font-medium
+                        bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
+                        border border-black/10 dark:border-white/10
+                        text-neutral-700 dark:text-white/80 transition
+                      "
+                    >
+                      Sign out
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { onClose(); signInWithGoogle() }}
+                      className="
+                        w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
+                        bg-brand hover:bg-brand-light text-black font-semibold text-base
+                        transition
+                      "
+                    >
+                      <svg className="w-5 h-5" viewBox="0 0 48 48">
+                        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/>
+                        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+                        <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.4-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+                        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
+                      </svg>
+                      Sign in with Google
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </motion.aside>
         </>
       )}
     </AnimatePresence>
+  )
+}
+
+// ── Search result list — vertical poster thumbnails inside the drawer ──
+function ResultList({ loading, results, onPick, query, onSeeAll }) {
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {loading && (
+        <p className="px-4 py-6 text-sm text-neutral-500 dark:text-white/50">
+          Searching…
+        </p>
+      )}
+
+      {!loading && results.length === 0 && (
+        <div className="px-4 py-10 text-center">
+          <div className="text-4xl mb-3 opacity-60">🔎</div>
+          <p className="text-sm text-neutral-500 dark:text-white/50">
+            No results for "{query}"
+          </p>
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <ul className="divide-y divide-black/5 dark:divide-white/5">
+          {results.map((item) => (
+            <li key={`${item.mediaType}-${item.id}`}>
+              <button
+                onClick={() => onPick(item)}
+                className="
+                  w-full flex items-start gap-3 px-4 py-3 text-left transition
+                  hover:bg-black/5 dark:hover:bg-white/5
+                "
+              >
+                {/* Poster thumb */}
+                <div className="shrink-0 w-12 h-16 rounded-md overflow-hidden bg-neutral-200 dark:bg-neutral-800">
+                  {item.posterUrl ? (
+                    <img src={item.posterUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xl">
+                      {item.mediaType === 'tv' ? '📺' : '🎬'}
+                    </div>
+                  )}
+                </div>
+                {/* Title + meta */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold leading-tight line-clamp-2">
+                    {item.title}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-[11px] text-neutral-500 dark:text-white/50">
+                    {item.year && <span>{item.year}</span>}
+                    <span className={`
+                      px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider
+                      ${item.mediaType === 'tv' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}
+                    `}>
+                      {item.mediaType}
+                    </span>
+                    {item.rating > 0 && (
+                      <span className="text-brand">★ {item.rating.toFixed(1)}</span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            </li>
+          ))}
+
+          {/* Footer link to full results page */}
+          <li>
+            <button
+              onClick={onSeeAll}
+              className="
+                w-full px-4 py-3 text-sm font-semibold text-brand
+                hover:bg-black/5 dark:hover:bg-white/5 transition
+              "
+            >
+              See all results for "{query}" →
+            </button>
+          </li>
+        </ul>
+      )}
+    </div>
   )
 }
 

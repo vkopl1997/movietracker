@@ -77,6 +77,81 @@ export async function getTrending() {
     .map(normalize)
 }
 
+// ── People (actors / crew) ────────────────────────────────────────────
+// Profile photos use the same TMDb image base. w500 is generous for cards;
+// the browser scales it down without quality loss.
+function normalizePerson(p) {
+  return {
+    id:        p.id,
+    name:      p.name,
+    photoUrl:  p.profile_path ? `${IMAGE_BASE}${p.profile_path}` : null,
+    knownFor:  p.known_for_department || 'Acting',
+    knownForWorks: (p.known_for || [])
+      .map((w) => w.title || w.name)
+      .filter(Boolean)
+      .slice(0, 3),
+    popularity: p.popularity ?? 0,
+  }
+}
+
+export async function getTrendingPeople() {
+  const data = await tmdbFetch('/trending/person/week')
+  return (data.results ?? []).map(normalizePerson)
+}
+
+export async function searchPeople(query) {
+  const data = await tmdbFetch(`/search/person?query=${encodeURIComponent(query)}`)
+  return (data.results ?? []).map(normalizePerson)
+}
+
+// Person details + their full filmography in ONE request via append_to_response.
+// Returns bio fields + a `credits` array of normalized MediaCard-compatible items
+// (each with an extra `character` field).
+export async function getPersonDetails(id) {
+  const data = await tmdbFetch(`/person/${id}?append_to_response=combined_credits`)
+
+  // Deduplicate by (mediaType, id) — TV series often appear multiple times
+  // when the actor recurred across seasons.
+  const seen = new Set()
+  const credits = (data.combined_credits?.cast ?? [])
+    .filter((c) => c.media_type === 'movie' || c.media_type === 'tv')
+    .filter((c) => c.poster_path)
+    .filter((c) => {
+      const key = `${c.media_type}-${c.id}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .map((c) => {
+      const isTv = c.media_type === 'tv'
+      const dateStr = isTv ? c.first_air_date : c.release_date
+      return {
+        id:         c.id,
+        title:      isTv ? c.name : c.title,
+        year:       dateStr ? Number(dateStr.slice(0, 4)) : null,
+        mediaType:  c.media_type,
+        posterUrl:  c.poster_path ? `${IMAGE_BASE}${c.poster_path}` : null,
+        rating:     typeof c.vote_average === 'number'
+          ? Math.round(c.vote_average * 10) / 10
+          : null,
+        character:  c.character || '',
+        popularity: c.popularity ?? 0,
+      }
+    })
+
+  return {
+    id:           data.id,
+    name:         data.name,
+    biography:    data.biography || '',
+    birthday:     data.birthday || null,
+    deathday:     data.deathday || null,
+    placeOfBirth: data.place_of_birth || null,
+    photoUrl:     data.profile_path ? `${IMAGE_BASE}${data.profile_path}` : null,
+    knownFor:     data.known_for_department || 'Acting',
+    credits,
+  }
+}
+
 // Search across movies + TV shows. URL-encode the query so it handles spaces, symbols, etc.
 export async function searchMulti(query) {
   const data = await tmdbFetch(`/search/multi?query=${encodeURIComponent(query)}`)

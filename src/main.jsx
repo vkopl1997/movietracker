@@ -9,6 +9,15 @@ import { NotificationsProvider } from './lib/NotificationsContext.jsx'
 import { AuthProvider } from './lib/AuthContext.jsx'
 import { FavoritesProvider } from './lib/FavoritesContext.jsx'
 
+// ── Register the service worker (PWA) ──────────────────────────────
+// Skipped in dev so changes always reload from source. Production-only.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch((err) => console.warn('SW registration failed:', err))
+  })
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     {/* Provider chain — outer providers must be ABOVE anyone that reads them.

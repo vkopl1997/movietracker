@@ -11,6 +11,17 @@
     <!-- Theme color for mobile browser chrome -->
     <meta name="theme-color" content="#0a0a0a" />
 
+    <!-- PWA manifest — what makes the app installable -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- iOS PWA tags — makes "Add to Home Screen" open fullscreen, no Safari UI -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MovieTracker" />
+
+    <!-- Mobile viewport — covers the notch area on iPhone with safe-area-inset -->
+    <meta name="format-detection" content="telephone=no" />
+
     <!-- SEO + sharing -->
     <title>MovieTracker — Save the movies & shows you love</title>
     <meta name="description" content="Discover movies and TV shows, save your favorites, never forget what you've watched." />

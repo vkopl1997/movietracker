@@ -55,7 +55,7 @@ function Footer() {
         {/* Personal credit + copyright */}
         <div className="text-center">
           <p className="text-sm">
-            Made with <span className="text-brand">♥</span> by{' '}
+            Made by{' '}
             <a
               href="https://github.com/vkopl1997"
               target="_blank" rel="noopener noreferrer"

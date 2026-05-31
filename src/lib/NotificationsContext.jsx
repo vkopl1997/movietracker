@@ -36,10 +36,10 @@ export function NotificationsProvider({ children }) {
   // Derived: count of unread items. Re-computed each render — no need to store.
   const unreadCount = items.filter((n) => !n.read).length
 
-  const addNotification = useCallback((message, { type = 'add' } = {}) => {
+  const addNotification = useCallback((message, { type = 'add', link = null } = {}) => {
     setItems((prev) => {
       const next = [
-        { id: ++nextId, message, type, createdAt: new Date().toISOString(), read: false },
+        { id: ++nextId, message, type, link, createdAt: new Date().toISOString(), read: false },
         ...prev,
       ]
       return next.slice(0, MAX_STORED)  // drop oldest if over cap

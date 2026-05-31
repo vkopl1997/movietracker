@@ -2,6 +2,7 @@
 // Clicking it opens a panel of notifications and marks all as read.
 
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNotifications } from '../lib/NotificationsContext'
 import { dropdownVariant } from '../lib/motion'
@@ -129,26 +130,11 @@ function NotificationBell() {
               /* Scrollable list — caps height so it doesn't take over the screen */
               <div className="max-h-96 overflow-y-auto">
                 {notifications.map((n) => (
-                  <div
+                  <NotificationItem
                     key={n.id}
-                    className="px-4 py-3 border-b border-black/5 dark:border-white/10 last:border-b-0"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className={`text-base mt-0.5 ${
-                        n.type === 'add'    ? 'text-brand' :
-                        n.type === 'remove' ? 'text-neutral-400' :
-                                              'text-red-400'
-                      }`}>
-                        {n.type === 'add' ? '♥' : n.type === 'remove' ? '✕' : '⚠'}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm leading-snug">{n.message}</div>
-                        <div className="text-[10px] text-neutral-400 dark:text-white/40 mt-1">
-                          {formatRelative(n.createdAt)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    notification={n}
+                    onClick={() => setOpen(false)}
+                  />
                 ))}
               </div>
             )}
@@ -157,6 +143,45 @@ function NotificationBell() {
       </AnimatePresence>
     </div>
   )
+}
+
+// Single notification row. Renders as a Link if it has a `link`; otherwise plain div.
+function NotificationItem({ notification: n, onClick }) {
+  // Reusable inner content (icon + message + timestamp)
+  const inner = (
+    <div className="flex items-start gap-3">
+      <span className={`text-base mt-0.5 ${
+        n.type === 'add'    ? 'text-brand' :
+        n.type === 'remove' ? 'text-neutral-400' :
+                              'text-red-400'
+      }`}>
+        {n.type === 'add' ? '♥' : n.type === 'remove' ? '✕' : '⚠'}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm leading-snug">{n.message}</div>
+        <div className="text-[10px] text-neutral-400 dark:text-white/40 mt-1">
+          {formatRelative(n.createdAt)}
+        </div>
+      </div>
+      {n.link && (
+        <span className="text-neutral-400 dark:text-white/40 text-xs mt-1">→</span>
+      )}
+    </div>
+  )
+
+  // Common class for both Link and div variants
+  const cls = `block px-4 py-3 border-b border-black/5 dark:border-white/10 last:border-b-0 transition ${
+    n.link ? 'hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer' : ''
+  }`
+
+  if (n.link) {
+    return (
+      <Link to={n.link} onClick={onClick} className={cls}>
+        {inner}
+      </Link>
+    )
+  }
+  return <div className={cls}>{inner}</div>
 }
 
 export default NotificationBell

@@ -67,7 +67,10 @@ function LikeNotifier() {
       for (const row of [...data].reverse()) {
         if (cancelled) break
         const name = await getDisplayName(row.liker_id)
-        addNotification(`${name} liked you ♥`, { type: 'add' })
+        addNotification(`${name} liked you ♥`, {
+          type: 'add',
+          link: `/user/${row.liker_id}`,
+        })
       }
       localStorage.setItem(storageKey, new Date().toISOString())
     }
@@ -89,7 +92,10 @@ function LikeNotifier() {
           const likerId = payload.new?.liker_id
           if (!likerId) return
           const name = await getDisplayName(likerId)
-          addNotification(`${name} liked you ♥`, { type: 'add' })
+          addNotification(`${name} liked you ♥`, {
+            type: 'add',
+            link: `/user/${likerId}`,
+          })
           localStorage.setItem(storageKey, new Date().toISOString())
         }
       )

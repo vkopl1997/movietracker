@@ -65,10 +65,13 @@ function Navbar() {
           </button>
 
           {/* ── Brand ───────────────────────────────────────────── */}
-          <Link to="/" className="flex items-center gap-2 shrink-0 group">
-            <Logo size={28} className="transition-transform group-hover:scale-110 sm:w-8 sm:h-8" />
-            <span className="text-base sm:text-lg font-bold tracking-wide text-brand">
-              MovieTracker
+          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+            <Logo size={32} className="transition-transform group-hover:scale-110" />
+            <span className="
+              font-display text-2xl sm:text-3xl tracking-[0.08em] leading-none
+              text-brand
+            ">
+              MOVIETRACKER
             </span>
           </Link>
 

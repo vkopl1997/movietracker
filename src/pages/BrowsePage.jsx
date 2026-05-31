@@ -64,12 +64,14 @@ function BrowsePage() {
     }
   }, [searchQuery])
 
-  const heroItem  = !searchQuery && media.length > 0 ? media[0] : null
-  const gridItems = heroItem ? media.slice(1) : media
+  // Use top 5 trending as the slider when not searching.
+  // The grid below starts from item #6 so we don't duplicate hero items.
+  const heroItems = !searchQuery && media.length > 0 ? media.slice(0, 5) : []
+  const gridItems = heroItems.length > 0 ? media.slice(heroItems.length) : media
 
   return (
     <>
-      <Hero item={heroItem} />
+      <Hero items={heroItems} />
 
       <main className="max-w-7xl mx-auto px-6 py-10">
         <div className="flex items-baseline justify-between mb-6">

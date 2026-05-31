@@ -21,8 +21,10 @@ export default {
         },
       },
       fontFamily: {
-        // Inter — modern geometric sans-serif, loaded from Google Fonts in index.css.
+        // Inter — body / UI text.
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        // Bebas Neue — condensed display font for the brand wordmark (cinema poster vibe).
+        display: ['Bebas Neue', 'Anton', 'Impact', 'sans-serif'],
       },
       keyframes: {
         // Shimmer for loading skeletons — slides the gradient from left to right.

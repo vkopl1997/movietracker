@@ -1,7 +1,8 @@
-// MovieTracker logo — same artwork as /public/favicon.svg.
-// Extracted so we can reuse it in the navbar, footer, splash screens, etc.
+// MovieTracker logo — bold geometric "M" monogram.
+// Cleaner, more iconic than the previous film-strip design.
+// Same artwork lives in /public/favicon.svg.
 
-function Logo({ size = 28, className = '' }) {
+function Logo({ size = 32, className = '' }) {
   return (
     <svg
       width={size}
@@ -9,29 +10,17 @@ function Logo({ size = 28, className = '' }) {
       viewBox="0 0 64 64"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      aria-hidden="true"          /* purely decorative — the text "MovieTracker" is the label */
+      aria-hidden="true"
     >
-      {/* Dark rounded square background */}
+      {/* Rounded square in matte black */}
       <rect width="64" height="64" rx="14" fill="#0a0a0a" />
 
-      {/* Top film-strip perforations */}
-      <rect x="0" y="6" width="64" height="6" fill="#1c1c1c" />
-      <circle cx="9"  cy="9" r="1.6" fill="#0a0a0a" />
-      <circle cx="20" cy="9" r="1.6" fill="#0a0a0a" />
-      <circle cx="32" cy="9" r="1.6" fill="#0a0a0a" />
-      <circle cx="44" cy="9" r="1.6" fill="#0a0a0a" />
-      <circle cx="55" cy="9" r="1.6" fill="#0a0a0a" />
-
-      {/* Bottom film-strip perforations */}
-      <rect x="0" y="52" width="64" height="6" fill="#1c1c1c" />
-      <circle cx="9"  cy="55" r="1.6" fill="#0a0a0a" />
-      <circle cx="20" cy="55" r="1.6" fill="#0a0a0a" />
-      <circle cx="32" cy="55" r="1.6" fill="#0a0a0a" />
-      <circle cx="44" cy="55" r="1.6" fill="#0a0a0a" />
-      <circle cx="55" cy="55" r="1.6" fill="#0a0a0a" />
-
-      {/* Gold play triangle */}
-      <path d="M 25 20 L 25 44 L 46 32 Z" fill="#d4af37" />
+      {/* Gold "M" monogram — bold, geometric, slight stencil feel.
+          Designed so the negative space at the bottom hints at a clapperboard slot. */}
+      <path
+        d="M 12 50 L 12 14 L 22 14 L 32 30 L 42 14 L 52 14 L 52 50 L 44 50 L 44 28 L 36 42 L 28 42 L 20 28 L 20 50 Z"
+        fill="#d4af37"
+      />
     </svg>
   )
 }

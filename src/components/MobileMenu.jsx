@@ -137,9 +137,11 @@ function MobileMenu({ open, onClose }) {
           >
             {/* Top row: brand + close */}
             <div className="px-4 py-4 flex items-center justify-between border-b border-black/5 dark:border-white/10">
-              <Link to="/" onClick={onClose} className="flex items-center gap-2">
-                <Logo size={28} />
-                <span className="font-bold tracking-wide text-brand">MovieTracker</span>
+              <Link to="/" onClick={onClose} className="flex items-center gap-2.5">
+                <Logo size={30} />
+                <span className="font-display text-2xl tracking-[0.08em] leading-none text-brand">
+                  MOVIETRACKER
+                </span>
               </Link>
               <button
                 onClick={onClose}

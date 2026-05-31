@@ -95,21 +95,42 @@ export async function getWatchProviders(mediaType, id) {
 // Provider logos are small icons — w92 keeps them sharp and cheap to load.
 export const PROVIDER_LOGO_BASE = 'https://image.tmdb.org/t/p/w92'
 
-// Fetch the full details for one movie or TV show, including cast.
-// `append_to_response=credits` is a TMDb trick — get details + credits in ONE request.
-export async function getMediaDetails(mediaType, id) {
-  const data = await tmdbFetch(`/${mediaType}/${id}?append_to_response=credits`)
+// Find the best trailer key from TMDb's videos list.
+// Preference order: official YouTube trailer → any YouTube trailer → any teaser.
+function findTrailerKey(videos) {
+  if (!videos) return null
+  const yt = videos.filter((v) => v.site === 'YouTube')
+  const trailer =
+    yt.find((v) => v.type === 'Trailer' && v.official) ??
+    yt.find((v) => v.type === 'Trailer') ??
+    yt.find((v) => v.type === 'Teaser') ??
+    yt[0]
+  return trailer?.key ?? null
+}
 
-  // Detail endpoints don't include media_type in the response, so we add it ourselves.
+// Fetch the full details for one movie or TV show.
+// `append_to_response=credits,videos,similar,recommendations` is a TMDb power
+// feature — instead of 4 separate HTTP calls, ONE request returns everything.
+export async function getMediaDetails(mediaType, id) {
+  const data = await tmdbFetch(
+    `/${mediaType}/${id}?append_to_response=credits,videos,similar,recommendations`
+  )
+
+  // Detail endpoints don't include media_type, so add it for our normalizer.
   const normalized = normalize({ ...data, media_type: mediaType })
 
-  // Add extra detail-page-only fields.
+  // Helper: child results (similar / recommendations) inherit our mediaType.
+  const normalizeChildren = (results) =>
+    (results ?? [])
+      .map((item) => normalize({ ...item, media_type: mediaType }))
+      .filter((item) => item.posterUrl)   // skip items without posters
+
   return {
     ...normalized,
     genres:  data.genres ?? [],
-    runtime: data.runtime ?? null,                  // movies (minutes)
-    seasons: data.number_of_seasons ?? null,        // TV
-    episodes: data.number_of_episodes ?? null,     // TV
+    runtime: data.runtime ?? null,
+    seasons: data.number_of_seasons ?? null,
+    episodes: data.number_of_episodes ?? null,
     tagline: data.tagline ?? null,
     cast: (data.credits?.cast ?? []).slice(0, 10).map((p) => ({
       id: p.id,
@@ -117,5 +138,9 @@ export async function getMediaDetails(mediaType, id) {
       character: p.character,
       photoUrl: p.profile_path ? `${IMAGE_BASE}${p.profile_path}` : null,
     })),
+    // NEW:
+    trailerKey:     findTrailerKey(data.videos?.results),
+    similar:        normalizeChildren(data.similar?.results),
+    recommendations: normalizeChildren(data.recommendations?.results),
   }
 }

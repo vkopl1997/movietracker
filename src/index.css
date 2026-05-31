@@ -30,3 +30,12 @@ html.dark body {
 html, body {
   transition: background-color 250ms ease, color 250ms ease;
 }
+
+/* Hide scrollbar but keep scrolling — used by horizontal rows */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE/Edge */
+  scrollbar-width: none;      /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;              /* Chrome / Safari */
+}

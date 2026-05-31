@@ -4,8 +4,11 @@ import { motion } from 'framer-motion'
 import { getMediaDetails } from '../lib/tmdb'
 import { fadeUp } from '../lib/motion'
 import { usePageTitle } from '../lib/usePageTitle'
+import { AnimatePresence } from 'framer-motion'
 import { MediaActionsFull } from '../components/MediaActions'
 import WhereToWatch from '../components/WhereToWatch'
+import TrailerModal from '../components/TrailerModal'
+import HorizontalRow from '../components/HorizontalRow'
 
 // One component handles both /movie/:id and /tv/:id.
 // We pass mediaType as a prop from the route definition.
@@ -14,6 +17,7 @@ function MediaDetailPage({ mediaType }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showTrailer, setShowTrailer] = useState(false)
 
   // Title updates whenever new data arrives (e.g. "Inception · MovieTracker")
   usePageTitle(data?.title)
@@ -136,6 +140,24 @@ function MediaDetailPage({ mediaType }) {
                 mediaType,
                 posterUrl: data.posterUrl,
               }} />
+
+              {/* Watch Trailer button — only shown when we have a video */}
+              {data.trailerKey && (
+                <button
+                  onClick={() => setShowTrailer(true)}
+                  className="
+                    mt-5 inline-flex items-center gap-2
+                    px-5 py-2.5 rounded-full
+                    bg-red-600 hover:bg-red-500 text-white font-semibold text-sm
+                    shadow-lg shadow-red-600/30
+                    transition
+                  "
+                >
+                  <span className="text-base">▶</span>
+                  Watch Trailer
+                </button>
+              )}
+
               <div className="mt-4">
                 <Link
                   to="/"
@@ -150,6 +172,12 @@ function MediaDetailPage({ mediaType }) {
 
         {/* ─── Where to watch ─── */}
         <WhereToWatch mediaType={mediaType} id={id} title={data.title} />
+
+        {/* ─── More like this ─── */}
+        <HorizontalRow title="More like this" items={data.similar} />
+
+        {/* ─── Recommended ─── */}
+        <HorizontalRow title="Recommended for you" items={data.recommendations} />
 
         {/* ─── Cast ─── */}
         {data.cast.length > 0 && (
@@ -184,6 +212,18 @@ function MediaDetailPage({ mediaType }) {
           </section>
         )}
       </div>
+
+      {/* Trailer modal — mounted at the bottom so AnimatePresence handles
+          entrance + exit cleanly, and the modal sits above all other content. */}
+      <AnimatePresence>
+        {showTrailer && data.trailerKey && (
+          <TrailerModal
+            videoKey={data.trailerKey}
+            title={data.title}
+            onClose={() => setShowTrailer(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.article>
   )
 }

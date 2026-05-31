@@ -8,6 +8,7 @@ import { ToastProvider } from './lib/ToastContext.jsx'
 import { NotificationsProvider } from './lib/NotificationsContext.jsx'
 import { AuthProvider } from './lib/AuthContext.jsx'
 import { FavoritesProvider } from './lib/FavoritesContext.jsx'
+import LikeNotifier from './components/LikeNotifier.jsx'
 
 // ── Register the service worker (PWA) ──────────────────────────────
 // Skipped in dev so changes always reload from source. Production-only.
@@ -28,6 +29,8 @@ createRoot(document.getElementById('root')).render(
           <NotificationsProvider>
             <AuthProvider>
               <FavoritesProvider>
+                {/* No UI — subscribes to "someone liked me" events and adds notifications. */}
+                <LikeNotifier />
                 <App />
               </FavoritesProvider>
             </AuthProvider>

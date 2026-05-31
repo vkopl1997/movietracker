@@ -1,12 +1,18 @@
 import { Outlet } from 'react-router-dom'
 import Navbar from './Navbar'
+import Footer from './Footer'
 
-// Background switches with theme. Text inherits from body (set in index.css).
+// Layout — persistent chrome around every page (navbar + footer).
+// Uses min-h-screen + flex-col so the footer sits at the BOTTOM of short
+// pages instead of floating in the middle.
 function Layout() {
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white transition-colors">
+    <div className="min-h-screen flex flex-col bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white transition-colors">
       <Navbar />
-      <Outlet />
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <Footer />
     </div>
   )
 }

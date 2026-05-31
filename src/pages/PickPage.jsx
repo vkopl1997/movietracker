@@ -78,6 +78,30 @@ const COMPANY = [
   { value: 'family',  label: 'With family',  familyFriendly: true },
 ]
 
+const ERAS = [
+  { value: 'any',     label: 'Any era' },
+  { value: 'modern',  label: 'Modern · 2015+',       releaseAfter:  2015 },
+  { value: 'recent',  label: '2000s & later',        releaseAfter:  2000 },
+  { value: 'classic', label: 'Pre-2000 classics',    releaseBefore: 1999 },
+]
+
+const LENGTHS = [
+  { value: 'any',    label: 'Any length' },
+  { value: 'short',  label: 'Under 90 min',  runtimeMax: 90 },
+  { value: 'medium', label: '90–130 min',    runtimeMin: 80, runtimeMax: 130 },
+  { value: 'long',   label: '2+ hours',      runtimeMin: 120 },
+]
+
+// Genres users might want to actively avoid for the night
+const AVOID_OPTIONS = [
+  { id: 27,    emoji: '👻', label: 'Horror' },
+  { id: 10402, emoji: '🎵', label: 'Musical' },
+  { id: 99,    emoji: '📷', label: 'Documentary' },
+  { id: 10749, emoji: '💕', label: 'Romance' },
+  { id: 18,    emoji: '🎭', label: 'Heavy drama' },
+  { id: 10752, emoji: '⚔️', label: 'War' },
+]
+
 const SORT_ROTATION = ['vote_average.desc', 'popularity.desc', 'vote_count.desc']
 
 function reasonFor(item, mood, company) {
@@ -109,6 +133,20 @@ function PickPage() {
   const [mood, setMood]       = useState(null)
   const [company, setCompany] = useState(null)
 
+  // Optional / advanced filters
+  const [era, setEra]               = useState('any')
+  const [length, setLength]         = useState('any')
+  const [avoidIds, setAvoidIds]     = useState(() => new Set())
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  function toggleAvoid(id) {
+    setAvoidIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   const [loading, setLoading] = useState(false)
   const [picks, setPicks]     = useState(null)
   const [error, setError]     = useState(null)
@@ -133,14 +171,23 @@ function PickPage() {
     const moodOpt    = MOODS.find((m) => m.value === mood)    || {}
     const companyOpt = COMPANY.find((c) => c.value === company) || {}
 
+    const eraOpt    = ERAS.find((e) => e.value === era)       || {}
+    const lengthOpt = LENGTHS.find((l) => l.value === length) || {}
+
     const baseFilter = {
       genres: moodOpt.genres || [],
+      withoutGenres: [...avoidIds],          // genres the user wants to skip
       familyFriendly: !!companyOpt.familyFriendly,
       minRating: 7,
       minVoteCount: 300,
       sortBy: SORT_ROTATION[sortIdx % SORT_ROTATION.length],
+      // Era filter overrides mood's classic year if user set one explicitly
+      releaseAfter:  eraOpt.releaseAfter,
+      releaseBefore: eraOpt.releaseBefore || moodOpt.beforeYear,
+      // Length filter
+      runtimeMin: lengthOpt.runtimeMin,
+      runtimeMax: lengthOpt.runtimeMax,
     }
-    if (moodOpt.beforeYear) baseFilter.releaseBefore = moodOpt.beforeYear
 
     try {
       const pageA = Math.floor(Math.random() * 3) + 1
@@ -191,7 +238,17 @@ function PickPage() {
   function reset() {
     setStep(1); setMood(null); setCompany(null); setPicks(null); setError(null)
     setSeenIds(new Set()); setSortIdx(0); setRound(0); setHasPicked(false)
+    setEra('any'); setLength('any'); setAvoidIds(new Set()); setAdvancedOpen(false)
   }
+
+  // Quick string of active optional filters — shown on the toggle row
+  const advancedSummary = useMemo(() => {
+    const parts = []
+    if (era !== 'any')    parts.push(ERAS.find((e) => e.value === era)?.label)
+    if (length !== 'any') parts.push(LENGTHS.find((l) => l.value === length)?.label)
+    if (avoidIds.size)    parts.push(`avoiding ${avoidIds.size}`)
+    return parts.join(' · ')
+  }, [era, length, avoidIds])
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -355,7 +412,7 @@ function PickPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-6"
+            className="space-y-4"
           >
             <Step n="1" question="What's your mood?" active={step >= 1}>
               <Choices
@@ -374,6 +431,97 @@ function PickPage() {
               />
             </Step>
 
+            {/* ── Advanced (optional) section ─────────────────────── */}
+            {step >= 2 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <button
+                  onClick={() => setAdvancedOpen((v) => !v)}
+                  className="
+                    w-full flex items-center justify-between gap-3 px-5 py-3 rounded-2xl
+                    bg-gradient-to-r from-white/[0.03] to-white/[0.01]
+                    dark:from-white/[0.04] dark:to-white/[0.02]
+                    border border-white/10 dark:border-white/10
+                    hover:border-brand/40
+                    transition
+                    text-left
+                  "
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm">
+                      ⚙
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold">Fine-tune (optional)</div>
+                      <div className="text-[11px] text-neutral-500 dark:text-white/50 truncate">
+                        {advancedSummary || 'Era, length, genres to avoid'}
+                      </div>
+                    </div>
+                  </div>
+                  <motion.span
+                    animate={{ rotate: advancedOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-xs text-neutral-500 dark:text-white/50"
+                  >
+                    ▾
+                  </motion.span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {advancedOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="
+                        mt-3 p-5 rounded-2xl space-y-5
+                        bg-gradient-to-br from-white/[0.04] to-transparent
+                        border border-white/10
+                      ">
+                        <OptionalRow label="Era">
+                          <SmallChips options={ERAS} value={era} onSelect={setEra} />
+                        </OptionalRow>
+                        <OptionalRow label="Length">
+                          <SmallChips options={LENGTHS} value={length} onSelect={setLength} />
+                        </OptionalRow>
+                        <OptionalRow label="Avoid">
+                          <div className="flex flex-wrap gap-2">
+                            {AVOID_OPTIONS.map((opt) => {
+                              const active = avoidIds.has(opt.id)
+                              return (
+                                <motion.button
+                                  key={opt.id}
+                                  onClick={() => toggleAvoid(opt.id)}
+                                  whileHover={{ scale: 1.04 }}
+                                  whileTap={{ scale: 0.94 }}
+                                  className={`
+                                    px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+                                    flex items-center gap-1.5
+                                    ${active
+                                      ? 'bg-red-500/20 text-red-300 border border-red-500/40 line-through'
+                                      : 'bg-white/[0.04] dark:bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'}
+                                  `}
+                                >
+                                  <span>{opt.emoji}</span>
+                                  <span>{opt.label}</span>
+                                </motion.button>
+                              )
+                            })}
+                          </div>
+                        </OptionalRow>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -391,15 +539,21 @@ function PickPage() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 16 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-                  className="text-center pt-4"
+                  className="text-center pt-2"
                 >
                   <motion.button
                     onClick={generate}
-                    whileHover={{ scale: 1.05, boxShadow: '0 10px 40px -10px rgba(212,175,55,0.6)' }}
+                    whileHover={{ scale: 1.05, boxShadow: '0 12px 50px -10px rgba(212,175,55,0.7)' }}
                     whileTap={{ scale: 0.97 }}
-                    className="px-8 py-3.5 rounded-full bg-brand text-black font-semibold text-base shadow-lg shadow-brand/30 transition-shadow"
+                    className="
+                      px-10 py-3.5 rounded-full text-base font-semibold
+                      bg-gradient-to-br from-brand via-brand to-brand-light text-black
+                      shadow-xl shadow-brand/40
+                      transition-shadow
+                      relative overflow-hidden
+                    "
                   >
-                    ✨ Find me something
+                    <span className="relative z-10">✨ Find me something</span>
                   </motion.button>
                 </motion.div>
               )}
@@ -413,7 +567,7 @@ function PickPage() {
 
 // ── Subcomponents ────────────────────────────────────────────────────
 
-// Step container: number badge bounces in, content slides up
+// Step container: number badge in a card-style wrapper with subtle gold accent
 function Step({ n, question, active, children }) {
   return (
     <AnimatePresence>
@@ -422,22 +576,77 @@ function Step({ n, question, active, children }) {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="
+            relative p-5 rounded-2xl
+            bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent
+            border border-white/10
+            shadow-xl shadow-black/20
+          "
         >
-          <div className="flex items-center gap-3 mb-4">
+          {/* Soft gold accent in the corner so it doesn't feel flat */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-brand/10 to-transparent rounded-tr-2xl rounded-bl-full pointer-events-none" />
+
+          <div className="flex items-center gap-3 mb-4 relative">
             <motion.span
               initial={{ scale: 0, rotate: -45 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 18, delay: 0.1 }}
-              className="w-8 h-8 rounded-full bg-brand text-black font-bold text-sm flex items-center justify-center shadow-md shadow-brand/30"
+              className="
+                w-9 h-9 rounded-full text-sm font-bold flex items-center justify-center
+                bg-gradient-to-br from-brand to-brand-dark text-black
+                shadow-lg shadow-brand/40
+                ring-2 ring-brand/30
+              "
             >
               {n}
             </motion.span>
             <h2 className="text-lg sm:text-xl font-bold">{question}</h2>
           </div>
-          {children}
+          <div className="relative">
+            {children}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+// Optional section row: label on the left, chips on the right
+function OptionalRow({ label, children }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] font-bold tracking-wider uppercase text-neutral-500 dark:text-white/40">
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// Smaller chip set used inside the advanced section
+function SmallChips({ options, value, onSelect }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => {
+        const active = value === opt.value
+        return (
+          <motion.button
+            key={opt.value}
+            onClick={() => onSelect(opt.value)}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.94 }}
+            className={`
+              px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+              ${active
+                ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
+                : 'bg-white/[0.04] dark:bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'}
+            `}
+          >
+            {opt.label}
+          </motion.button>
+        )
+      })}
+    </div>
   )
 }
 

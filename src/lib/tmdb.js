@@ -88,7 +88,8 @@ export async function getUpcomingMovies(region = 'US') {
 // mood (genre), available time (runtime), and family-friendliness.
 // See https://developer.themoviedb.org/reference/discover-movie for params.
 export async function discoverMovies({
-  genres = [],              // array of TMDb genre ids
+  genres = [],              // array of TMDb genre ids to include
+  withoutGenres = [],       // array of TMDb genre ids to EXCLUDE
   runtimeMin,
   runtimeMax,
   minRating = 6.5,          // skip mediocre stuff
@@ -101,6 +102,7 @@ export async function discoverMovies({
 } = {}) {
   const params = new URLSearchParams()
   if (genres.length)               params.set('with_genres', genres.join(','))
+  if (withoutGenres.length)        params.set('without_genres', withoutGenres.join(','))
   if (Number.isFinite(runtimeMin)) params.set('with_runtime.gte', String(runtimeMin))
   if (Number.isFinite(runtimeMax)) params.set('with_runtime.lte', String(runtimeMax))
   if (Number.isFinite(releaseBefore)) params.set('primary_release_date.lte', `${releaseBefore}-12-31`)

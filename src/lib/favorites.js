@@ -1,13 +1,16 @@
 // ──────────────────────────────────────────────────────────────────────
-// Favorites — the Supabase data layer for the user_favorites table.
-// Plain functions, no React. The Context wraps these.
+// Media tracking — Supabase data layer for user_favorites table.
+// Despite the table name, this now tracks:
+//   - is_favorite  ♥
+//   - is_watched   ✓
+//   - is_watchlist 🔖
+//   - user_rating  ⭐ (1-5)
+//   - note         📝
 // ──────────────────────────────────────────────────────────────────────
 import { supabase } from './supabase'
 
-// Fetch all favorites for the currently signed-in user.
-// RLS ensures we only get rows where auth.uid() = user_id, so we don't
-// need a `.eq('user_id', ...)` filter here — the database does it for us.
-export async function fetchFavorites() {
+// ── Fetch ────────────────────────────────────────────────────────────
+export async function fetchUserMedia() {
   const { data, error } = await supabase
     .from('user_favorites')
     .select('*')
@@ -15,45 +18,104 @@ export async function fetchFavorites() {
 
   if (error) throw error
 
-  // Normalize so the shape matches what MediaCard / Hero expect.
-  return data.map((row) => ({
-    id:         row.tmdb_id,
-    title:      row.title,
-    year:       row.year,
-    rating:     row.rating != null ? Number(row.rating) : null,
-    mediaType:  row.media_type,
-    posterUrl:  row.poster_url,
-    createdAt:  row.created_at,
-  }))
+  return data.map(rowToItem)
 }
 
-// Add an item to the current user's favorites.
-// `userId` is required because RLS won't accept rows whose user_id doesn't
-// match the signed-in user — we set it explicitly.
-export async function addFavorite(userId, item) {
+// Map a DB row to the in-app shape used by MediaCard etc.
+function rowToItem(row) {
+  return {
+    id:          row.tmdb_id,
+    title:       row.title,
+    year:        row.year,
+    rating:      row.rating != null ? Number(row.rating) : null,  // TMDb rating
+    mediaType:   row.media_type,
+    posterUrl:   row.poster_url,
+    createdAt:   row.created_at,
+    // New status fields:
+    isFavorite:  !!row.is_favorite,
+    isWatched:   !!row.is_watched,
+    isWatchlist: !!row.is_watchlist,
+    userRating:  row.user_rating,
+    note:        row.note,
+    watchedAt:   row.watched_at,
+  }
+}
+
+// ── Upsert pattern ───────────────────────────────────────────────────
+// We use Postgres `upsert` (insert-or-update on conflict) so a single
+// call handles both "first time interacting with this item" and "updating
+// an existing row". The PK is (user_id, tmdb_id, media_type).
+async function upsert(userId, item, changes) {
+  const row = {
+    user_id:     userId,
+    tmdb_id:     item.id,
+    media_type:  item.mediaType,
+    title:       item.title,
+    poster_url:  item.posterUrl,
+    year:        item.year,
+    rating:      item.rating,
+    ...changes,
+  }
+
   const { error } = await supabase
     .from('user_favorites')
-    .insert({
-      user_id:    userId,
-      tmdb_id:    item.id,
-      media_type: item.mediaType,
-      title:      item.title,
-      poster_url: item.posterUrl,
-      year:       item.year,
-      rating:     item.rating,
-    })
+    .upsert(row, { onConflict: 'user_id,tmdb_id,media_type' })
 
   if (error) throw error
 }
 
-// Remove an item from favorites by composite key (tmdb_id + media_type).
-// RLS handles the user_id check automatically.
-export async function removeFavorite(item) {
+// ── Status setters ───────────────────────────────────────────────────
+export async function setFavorite(userId, item, value) {
+  await upsert(userId, item, { is_favorite: value })
+}
+
+export async function setWatched(userId, item, value) {
+  await upsert(userId, item, {
+    is_watched: value,
+    // Only set timestamp when marking as watched; clearing it when unmarking is OK.
+    watched_at: value ? new Date().toISOString() : null,
+  })
+}
+
+export async function setWatchlist(userId, item, value) {
+  await upsert(userId, item, { is_watchlist: value })
+}
+
+export async function setUserRating(userId, item, rating) {
+  // Marking a rating implies "watched" — auto-tick it for convenience.
+  await upsert(userId, item, {
+    user_rating: rating,
+    is_watched: true,
+    watched_at: new Date().toISOString(),
+  })
+}
+
+export async function setNote(userId, item, note) {
+  await upsert(userId, item, { note: note || null })
+}
+
+// ── Delete (when ALL flags are off, row is orphaned — clean it up) ───
+export async function deleteRow(item) {
   const { error } = await supabase
     .from('user_favorites')
     .delete()
     .eq('tmdb_id', item.id)
     .eq('media_type', item.mediaType)
+  if (error) throw error
+}
 
+// Legacy named exports — kept so existing imports don't break during refactor.
+export const fetchFavorites = fetchUserMedia
+export async function addFavorite(userId, item) {
+  await setFavorite(userId, item, true)
+}
+export async function removeFavorite(item) {
+  // For "remove from favorites" we just unset the flag, NOT delete the row —
+  // the user might still have it as watched/watchlist.
+  const { error } = await supabase
+    .from('user_favorites')
+    .update({ is_favorite: false })
+    .eq('tmdb_id', item.id)
+    .eq('media_type', item.mediaType)
   if (error) throw error
 }

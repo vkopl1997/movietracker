@@ -110,7 +110,7 @@ function UserMenu() {
             </div>
           </div>
 
-          {/* Favorites link */}
+          {/* Library link */}
           <Link
             to="/favorites"
             onClick={close}
@@ -122,7 +122,7 @@ function UserMenu() {
             "
           >
             <span className="text-brand text-base">♥</span>
-            <span>Favorites</span>
+            <span>My Library</span>
           </Link>
 
           {/* Divider */}

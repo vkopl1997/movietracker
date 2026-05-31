@@ -2,20 +2,14 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { getMediaDetails } from '../lib/tmdb'
-import { useAuth } from '../lib/AuthContext'
-import { useFavorites } from '../lib/FavoritesContext'
 import { fadeUp } from '../lib/motion'
 import { usePageTitle } from '../lib/usePageTitle'
+import { MediaActionsFull } from '../components/MediaActions'
 
 // One component handles both /movie/:id and /tv/:id.
 // We pass mediaType as a prop from the route definition.
 function MediaDetailPage({ mediaType }) {
-  // useParams gives you the dynamic segments from the URL.
-  // For /movie/603, params.id is "603".
   const { id } = useParams()
-  const { user, signInWithGoogle } = useAuth()
-  const { isFavorite, toggleFavorite } = useFavorites()
-
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -131,39 +125,24 @@ function MediaDetailPage({ mediaType }) {
               {data.overview || 'No overview available.'}
             </p>
 
-            {/* CTAs */}
-            <div className="flex gap-3 mb-12">
-              {(() => {
-                // Build the favorite-compatible item from the detail data.
-                const item = {
-                  id: Number(id),
-                  title: data.title,
-                  year: data.year,
-                  rating: data.rating,
-                  mediaType,
-                  posterUrl: data.posterUrl,
-                }
-                const fav = isFavorite(item)
-
-                return (
-                  <button
-                    onClick={() => user ? toggleFavorite(item) : signInWithGoogle()}
-                    className={`px-5 py-2.5 rounded-full font-semibold text-sm transition ${
-                      fav
-                        ? 'bg-brand text-black hover:bg-brand-light'
-                        : 'bg-black/5 hover:bg-black/10 border border-black/10 text-neutral-900 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white'
-                    }`}
-                  >
-                    {fav ? '♥ Favorited' : '♡ Add to favorites'}
-                  </button>
-                )
-              })()}
-              <Link
-                to="/"
-                className="px-5 py-2.5 rounded-full bg-black/5 hover:bg-black/10 border border-black/10 text-neutral-900 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white font-medium text-sm transition"
-              >
-                ← Back
-              </Link>
+            {/* Full action panel: favorite/watched/watchlist + rating + note */}
+            <div className="mb-12">
+              <MediaActionsFull item={{
+                id: Number(id),
+                title: data.title,
+                year: data.year,
+                rating: data.rating,
+                mediaType,
+                posterUrl: data.posterUrl,
+              }} />
+              <div className="mt-4">
+                <Link
+                  to="/"
+                  className="text-sm text-neutral-500 dark:text-white/60 hover:text-brand transition"
+                >
+                  ← Back to browse
+                </Link>
+              </div>
             </div>
           </div>
         </div>

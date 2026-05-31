@@ -67,7 +67,7 @@ function Navbar() {
               }
             >
               <span className="text-brand">♥</span>
-              Favorites
+              Library
             </NavLink>
           )}
         </div>

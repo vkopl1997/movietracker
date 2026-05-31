@@ -200,21 +200,9 @@ function MediaDetailPage({ mediaType }) {
                     group-hover:ring-2 group-hover:ring-brand
                     group-hover:shadow-lg group-hover:shadow-brand/20
                   ">
-                    {person.photoUrl ? (
-                      <img
-                        src={person.photoUrl}
-                        alt={person.name}
-                        loading="lazy"
-                        className="
-                          w-full h-full object-cover
-                          transition duration-300 group-hover:scale-105
-                        "
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-2xl text-neutral-400 dark:text-white/30">
-                        👤
-                      </div>
-                    )}
+                    <CastImage person={person} />
+                    {/* Branded fallback rendered inside CastImage when no photo
+                        or image fails to load — see component below. */}
                   </div>
                   <div className="text-xs font-semibold leading-tight group-hover:text-brand transition-colors">
                     {person.name}
@@ -251,6 +239,32 @@ function MediaDetailPage({ mediaType }) {
         )}
       </AnimatePresence>
     </motion.article>
+  )
+}
+
+// Cast photo with a branded fallback that activates if the image fails to load
+// or there's no photoUrl. Shows a gold initial on a soft gradient.
+function CastImage({ person }) {
+  const [failed, setFailed] = useState(false)
+  const initial = (person.name || '?').trim().charAt(0).toUpperCase()
+  const showImage = person.photoUrl && !failed
+  if (showImage) {
+    return (
+      <img
+        src={person.photoUrl}
+        alt={person.name}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+      />
+    )
+  }
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-900">
+      <span className="font-display text-4xl text-brand drop-shadow leading-none">
+        {initial}
+      </span>
+    </div>
   )
 }
 

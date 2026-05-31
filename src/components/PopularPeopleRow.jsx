@@ -67,6 +67,10 @@ function PopularPeopleRow() {
 }
 
 function PopularPersonCard({ person }) {
+  const [failed, setFailed] = useState(false)
+  const initial = (person.name || '?').trim().charAt(0).toUpperCase()
+  const showImage = person.photoUrl && !failed
+
   return (
     <Link
       to={`/person/${person.id}`}
@@ -81,16 +85,19 @@ function PopularPersonCard({ person }) {
         group-hover:ring-2 group-hover:ring-brand
         group-hover:shadow-xl group-hover:shadow-brand/30
       ">
-        {person.photoUrl ? (
+        {showImage ? (
           <img
             src={person.photoUrl}
             alt={person.name}
             loading="lazy"
+            onError={() => setFailed(true)}
             className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-5xl bg-neutral-300 dark:bg-neutral-700">
-            👤
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-900">
+            <span className="font-display text-6xl text-brand drop-shadow leading-none">
+              {initial}
+            </span>
           </div>
         )}
       </div>

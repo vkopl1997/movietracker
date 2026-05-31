@@ -61,14 +61,14 @@ function tagsFor(pick, mood, company) {
 }
 
 const MOODS = [
-  { value: 'funny',    emoji: '😄', label: 'Funny / happy',       genres: [GENRE.comedy, GENRE.animation, GENRE.family] },
-  { value: 'intense',  emoji: '😱', label: 'Intense / thrilling',  genres: [GENRE.thriller, GENRE.action, GENRE.crime, GENRE.mystery] },
-  { value: 'deep',     emoji: '🤔', label: 'Thought-provoking',    genres: [GENRE.drama, GENRE.scifi, GENRE.history, GENRE.doc] },
-  { value: 'cozy',     emoji: '❤️', label: 'Cozy / comfort',       genres: [GENRE.romance, GENRE.family, GENRE.animation] },
-  { value: 'epic',     emoji: '⚔️', label: 'Epic / adventure',     genres: [GENRE.adventure, GENRE.fantasy, GENRE.action, GENRE.scifi] },
-  { value: 'dark',     emoji: '🕯️', label: 'Dark / gritty',        genres: [GENRE.crime, GENRE.horror, GENRE.thriller, GENRE.drama] },
-  { value: 'classic',  emoji: '🏛️', label: 'Classic / timeless',   genres: [], beforeYear: 2000 },
-  { value: 'surprise', emoji: '🎲', label: 'Surprise me',           genres: [] },
+  { value: 'funny',    label: 'Funny / happy',       genres: [GENRE.comedy, GENRE.animation, GENRE.family] },
+  { value: 'intense',  label: 'Intense / thrilling',  genres: [GENRE.thriller, GENRE.action, GENRE.crime, GENRE.mystery] },
+  { value: 'deep',     label: 'Thought-provoking',    genres: [GENRE.drama, GENRE.scifi, GENRE.history, GENRE.doc] },
+  { value: 'cozy',     label: 'Cozy / comfort',       genres: [GENRE.romance, GENRE.family, GENRE.animation] },
+  { value: 'epic',     label: 'Epic / adventure',     genres: [GENRE.adventure, GENRE.fantasy, GENRE.action, GENRE.scifi] },
+  { value: 'dark',     label: 'Dark / gritty',        genres: [GENRE.crime, GENRE.horror, GENRE.thriller, GENRE.drama] },
+  { value: 'classic',  label: 'Classic / timeless',   genres: [], beforeYear: 2000 },
+  { value: 'surprise', label: 'Surprise me',           genres: [] },
 ]
 
 const COMPANY = [
@@ -94,12 +94,12 @@ const LENGTHS = [
 
 // Genres users might want to actively avoid for the night
 const AVOID_OPTIONS = [
-  { id: 27,    emoji: '👻', label: 'Horror' },
-  { id: 10402, emoji: '🎵', label: 'Musical' },
-  { id: 99,    emoji: '📷', label: 'Documentary' },
-  { id: 10749, emoji: '💕', label: 'Romance' },
-  { id: 18,    emoji: '🎭', label: 'Heavy drama' },
-  { id: 10752, emoji: '⚔️', label: 'War' },
+  { id: 27,    label: 'Horror' },
+  { id: 10402, label: 'Musical' },
+  { id: 99,    label: 'Documentary' },
+  { id: 10749, label: 'Romance' },
+  { id: 18,    label: 'Heavy drama' },
+  { id: 10752, label: 'War' },
 ]
 
 const SORT_ROTATION = ['vote_average.desc', 'popularity.desc', 'vote_count.desc']
@@ -228,6 +228,13 @@ function PickPage() {
       })
       setSortIdx((i) => i + 1)
       setRound((r) => r + 1)
+
+      // Auto-scroll to top so the results are in view immediately.
+      // Without this, users who expanded the optional section and scrolled
+      // down to reach the submit button stay parked below the new results.
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })
     } catch (err) {
       setError(err.message || 'Something went wrong picking movies.')
     } finally {
@@ -254,14 +261,10 @@ function PickPage() {
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
       <header className="text-center mb-4">
-        <div className="text-[11px] font-bold tracking-[0.25em] text-brand uppercase mb-1 flex items-center justify-center gap-1.5">
-          <motion.span
-            animate={{ rotate: [0, 15, -10, 0], scale: [1, 1.2, 1] }}
-            transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-          >
-            ✨
-          </motion.span>
+        <div className="text-[11px] font-bold tracking-[0.25em] text-brand uppercase mb-1 inline-flex items-center gap-2">
+          <span className="inline-block w-6 h-px bg-brand/50" />
           AI Pick
+          <span className="inline-block w-6 h-px bg-brand/50" />
         </div>
         <h1 className="font-display text-3xl sm:text-4xl tracking-[0.02em] mb-1">
           What should I watch?
@@ -361,17 +364,11 @@ function PickPage() {
               >
                 {loading ? (
                   <>
-                    <motion.span
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="inline-block"
-                    >
-                      ✨
-                    </motion.span>
+                    <Spinner />
                     Picking…
                   </>
                 ) : (
-                  <>✨ Pick again</>
+                  <>Pick again</>
                 )}
               </motion.button>
               <motion.button
@@ -397,7 +394,7 @@ function PickPage() {
             exit={{ opacity: 0 }}
             className="text-center py-20"
           >
-            <SparkleLoader />
+            <PickLoader />
             <motion.p
               className="text-neutral-500 dark:text-white/60 mt-6"
               animate={{ opacity: [0.5, 1, 0.5] }}
@@ -419,7 +416,6 @@ function PickPage() {
                 options={MOODS}
                 value={mood}
                 onSelect={(v) => { setMood(v); setStep(2) }}
-                renderLabel={(o) => <><span className="mr-2">{o.emoji}</span>{o.label}</>}
               />
             </Step>
 
@@ -451,8 +447,16 @@ function PickPage() {
                   "
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-sm">
-                      ⚙
+                    <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-brand">
+                      {/* Clean SVG sliders icon — no emoji */}
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="4" y1="6"  x2="20" y2="6" />
+                        <line x1="4" y1="12" x2="20" y2="12" />
+                        <line x1="4" y1="18" x2="20" y2="18" />
+                        <circle cx="8"  cy="6"  r="2.2" fill="currentColor" />
+                        <circle cx="16" cy="12" r="2.2" fill="currentColor" />
+                        <circle cx="10" cy="18" r="2.2" fill="currentColor" />
+                      </svg>
                     </span>
                     <div className="min-w-0">
                       <div className="text-sm font-semibold">Fine-tune (optional)</div>
@@ -502,14 +506,12 @@ function PickPage() {
                                   whileTap={{ scale: 0.94 }}
                                   className={`
                                     px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                                    flex items-center gap-1.5
                                     ${active
                                       ? 'bg-red-500/20 text-red-300 border border-red-500/40 line-through'
                                       : 'bg-white/[0.04] dark:bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'}
                                   `}
                                 >
-                                  <span>{opt.emoji}</span>
-                                  <span>{opt.label}</span>
+                                  {opt.label}
                                 </motion.button>
                               )
                             })}
@@ -553,7 +555,7 @@ function PickPage() {
                       relative overflow-hidden
                     "
                   >
-                    <span className="relative z-10">✨ Find me something</span>
+                    <span className="relative z-10">Find me something</span>
                   </motion.button>
                 </motion.div>
               )}
@@ -793,48 +795,56 @@ function SkeletonPickCard({ index = 0 }) {
   )
 }
 
-// Multiple sparkles orbiting / pulsing during the wait
-function SparkleLoader() {
-  // Positions around a circle
-  const sparkles = [
-    { x: 0,   y: -40, delay: 0   },
-    { x: 35,  y: -20, delay: 0.15 },
-    { x: 40,  y: 20,  delay: 0.3 },
-    { x: 0,   y: 40,  delay: 0.45 },
-    { x: -40, y: 20,  delay: 0.6 },
-    { x: -35, y: -20, delay: 0.75 },
-  ]
+// Small spinner used inline (e.g. inside "Picking..." button)
+function Spinner({ size = 14 }) {
   return (
-    <div className="relative inline-flex items-center justify-center w-32 h-32">
-      {sparkles.map((s, i) => (
-        <motion.span
-          key={i}
-          className="absolute text-2xl"
-          style={{ left: '50%', top: '50%' }}
-          initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-          animate={{
-            opacity: [0, 1, 0],
-            scale:   [0, 1.2, 0],
-            x:       [0, s.x, s.x * 0.5],
-            y:       [0, s.y, s.y * 0.5],
-          }}
-          transition={{
-            duration: 1.8,
-            repeat: Infinity,
-            delay: s.delay,
-            ease: 'easeOut',
-          }}
-        >
-          ✨
-        </motion.span>
-      ))}
-      <motion.span
-        className="text-5xl"
-        animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      >
-        🎬
-      </motion.span>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <motion.path
+        d="M22 12a10 10 0 0 0-10-10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
+        style={{ transformOrigin: '12px 12px' }}
+      />
+    </svg>
+  )
+}
+
+// Big clean loader for the first-pick wait — concentric brand rings + dots
+function PickLoader() {
+  return (
+    <div className="relative inline-flex items-center justify-center w-28 h-28">
+      {/* Outer ring */}
+      <motion.div
+        className="absolute inset-0 rounded-full border-2 border-brand/30"
+        animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.1, 0.4] }}
+        transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      {/* Middle spinning arc */}
+      <motion.div
+        className="absolute inset-3 rounded-full"
+        style={{
+          background: 'conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(212,175,55,0.85) 360deg)',
+          maskImage: 'radial-gradient(transparent 55%, black 56%)',
+          WebkitMaskImage: 'radial-gradient(transparent 55%, black 56%)',
+        }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+      />
+      {/* Three pulsing dots in the center */}
+      <div className="relative flex gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="w-2 h-2 rounded-full bg-brand"
+            animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15 }}
+          />
+        ))}
+      </div>
     </div>
   )
 }

@@ -10,6 +10,8 @@ import { motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
 import { useFavorites } from '../lib/FavoritesContext'
 import { getUpcomingMovies } from '../lib/tmdb'
+import { useScrollArrows } from '../lib/useScrollArrows'
+import ScrollArrows from './ScrollArrows'
 
 // "2026-06-05" → "Jun 5"
 function shortDate(iso) {
@@ -21,6 +23,7 @@ function shortDate(iso) {
 
 function UpcomingRow() {
   const [items, setItems] = useState([])
+  const { ref, canLeft, canRight, scrollLeft, scrollRight } = useScrollArrows()
 
   useEffect(() => {
     let cancelled = false
@@ -45,12 +48,24 @@ function UpcomingRow() {
         </p>
       </div>
 
-      {/* Horizontal scroller — same pattern as HorizontalRow */}
-      <div className="-mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto scrollbar-hide">
-        <div className="flex gap-4 pb-2">
-          {items.map((item) => (
-            <UpcomingCard key={item.id} item={item} />
-          ))}
+      {/* Scroller with floating arrows on each end */}
+      <div className="relative">
+        <ScrollArrows
+          canLeft={canLeft}
+          canRight={canRight}
+          onLeft={scrollLeft}
+          onRight={scrollRight}
+        />
+
+        <div
+          ref={ref}
+          className="-mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto scrollbar-hide scroll-smooth"
+        >
+          <div className="flex gap-4 pb-2">
+            {items.map((item) => (
+              <UpcomingCard key={item.id} item={item} />
+            ))}
+          </div>
         </div>
       </div>
     </section>

@@ -68,6 +68,18 @@ function normalize(item) {
 
 // Public functions used by the rest of the app.
 
+// Upcoming theatrical releases. Returns normalized items + raw release_date
+// so the UI can show "Jun 5" style date labels.
+export async function getUpcomingMovies(region = 'US') {
+  const data = await tmdbFetch(`/movie/upcoming?region=${region}`)
+  return (data.results ?? [])
+    .filter((m) => m.backdrop_path)   // skip items without a usable hero image
+    .map((m) => ({
+      ...normalize({ ...m, media_type: 'movie' }),
+      releaseDate: m.release_date,
+    }))
+}
+
 // Trending movies + TV shows for the week (mixed).
 export async function getTrending() {
   const data = await tmdbFetch('/trending/all/week')

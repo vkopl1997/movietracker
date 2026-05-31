@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import MediaCard from '../components/MediaCard'
 import Hero from '../components/Hero'
+import UpcomingRow from '../components/UpcomingRow'
 import { SkeletonGrid } from '../components/SkeletonCard'
 import { getTrending, searchMulti } from '../lib/tmdb'
 import { gridContainer, cardVariant } from '../lib/motion'
@@ -106,7 +107,7 @@ function BrowsePage() {
           variants={gridContainer}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5 mb-16"
         >
           {gridItems.map((item) => (
             <motion.div key={`${item.mediaType}-${item.id}`} variants={cardVariant}>
@@ -114,6 +115,9 @@ function BrowsePage() {
             </motion.div>
           ))}
         </motion.div>
+
+        {/* "Coming soon to theaters" — only on the default home view, not on search results */}
+        {!searchQuery && <UpcomingRow />}
       </main>
     </>
   )

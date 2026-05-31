@@ -138,15 +138,16 @@ function Navbar() {
           {/* ── Right-side actions group ───────────────────────── */}
           <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
 
-            {/* Library shortcut — "My List" text pill, signed-in users only. */}
+            {/* Library shortcut — same styling as Browse / Actors / Users links. */}
             {user && (
               <NavLink
                 to="/favorites"
                 className={({ isActive }) =>
-                  `hidden sm:flex items-center px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap
-                  ${isActive
-                    ? 'bg-brand text-black border border-brand'
-                    : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-700 dark:text-white/80'}`
+                  `hidden sm:inline-block px-3 py-1.5 rounded-full text-sm transition whitespace-nowrap ${
+                    isActive
+                      ? 'bg-black/10 text-neutral-900 dark:bg-white/10 dark:text-white'
+                      : 'text-neutral-500 hover:text-neutral-900 dark:text-white/60 dark:hover:text-white'
+                  }`
                 }
               >
                 My List

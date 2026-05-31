@@ -102,21 +102,18 @@ function Navbar() {
             >
               Actors
             </NavLink>
-            {user && (
-              <NavLink
-                to="/favorites"
-                className={({ isActive }) =>
-                  `px-3 py-1.5 rounded-full text-sm transition flex items-center gap-1 ${
-                    isActive
-                      ? 'bg-black/10 text-neutral-900 dark:bg-white/10 dark:text-white'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:text-white/60 dark:hover:text-white'
-                  }`
-                }
-              >
-                <span className="text-brand">♥</span>
-                Library
-              </NavLink>
-            )}
+            <NavLink
+              to="/users"
+              className={({ isActive }) =>
+                `px-3 py-1.5 rounded-full text-sm transition ${
+                  isActive
+                    ? 'bg-black/10 text-neutral-900 dark:bg-white/10 dark:text-white'
+                    : 'text-neutral-500 hover:text-neutral-900 dark:text-white/60 dark:hover:text-white'
+                }`
+              }
+            >
+              Users
+            </NavLink>
           </div>
 
           {/* Desktop search — hidden on mobile (search lives in drawer) */}
@@ -140,6 +137,24 @@ function Navbar() {
 
           {/* ── Right-side actions group ───────────────────────── */}
           <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
+
+            {/* Library shortcut — heart icon button, signed-in users only.
+                Replaces the old ♥ Library text link in the main nav. */}
+            {user && (
+              <NavLink
+                to="/favorites"
+                aria-label="My Library"
+                title="My Library"
+                className={({ isActive }) =>
+                  `hidden sm:flex w-9 h-9 rounded-full items-center justify-center transition text-base
+                  ${isActive
+                    ? 'bg-brand text-black border border-brand'
+                    : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-brand'}`
+                }
+              >
+                ♥
+              </NavLink>
+            )}
 
             {/* Theme toggle — only visible to signed-out users.
                 Signed-in users find it inside the avatar dropdown menu. */}

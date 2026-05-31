@@ -6,6 +6,7 @@ import MediaDetailPage from './pages/MediaDetailPage'
 import FavoritesPage from './pages/FavoritesPage'
 import BrowsePeoplePage from './pages/BrowsePeoplePage'
 import PersonDetailPage from './pages/PersonDetailPage'
+import BrowseUsersPage from './pages/BrowseUsersPage'
 import './App.css'
 
 function App() {
@@ -19,6 +20,9 @@ function App() {
         {/* People / actors */}
         <Route path="actors"      element={<BrowsePeoplePage />} />
         <Route path="person/:id"  element={<PersonDetailPage />} />
+
+        {/* App users */}
+        <Route path="users"       element={<BrowseUsersPage />} />
 
         <Route
           path="favorites"

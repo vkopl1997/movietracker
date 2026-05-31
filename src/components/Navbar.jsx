@@ -141,20 +141,23 @@ function Navbar() {
           {/* ── Right-side actions group ───────────────────────── */}
           <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
 
-            {/* Theme toggle — hidden on smallest mobile, lives in drawer */}
-            <button
-              onClick={toggleTheme}
-              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              className="
-                hidden sm:flex w-9 h-9 rounded-full items-center justify-center
-                bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-                border border-black/10 dark:border-white/10
-                transition text-lg
-              "
-            >
-              {theme === 'dark' ? '☀️' : '🌙'}
-            </button>
+            {/* Theme toggle — only visible to signed-out users.
+                Signed-in users find it inside the avatar dropdown menu. */}
+            {!user && (
+              <button
+                onClick={toggleTheme}
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                className="
+                  hidden sm:flex w-9 h-9 rounded-full items-center justify-center
+                  bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
+                  border border-black/10 dark:border-white/10
+                  transition text-lg
+                "
+              >
+                {theme === 'dark' ? '☀️' : '🌙'}
+              </button>
+            )}
 
             {/* Notification bell — only when signed in */}
             {user && <NotificationBell />}

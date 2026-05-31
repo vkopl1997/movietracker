@@ -10,10 +10,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
+import { useTheme } from '../lib/ThemeContext'
 import { dropdownVariant } from '../lib/motion'
 
 function UserMenu() {
   const { user, signOut } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const containerRef = useRef(null)
 
@@ -124,6 +126,32 @@ function UserMenu() {
             <span className="text-brand text-base">♥</span>
             <span>My Library</span>
           </Link>
+
+          {/* Theme toggle — stays open after click so user sees the change */}
+          <button
+            onClick={toggleTheme}
+            role="menuitem"
+            className="
+              w-full flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition text-left
+              text-neutral-700 dark:text-white/80
+              hover:bg-black/5 dark:hover:bg-white/5
+            "
+          >
+            <span className="flex items-center gap-3">
+              <span className="text-base">{theme === 'dark' ? '☀️' : '🌙'}</span>
+              <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </span>
+            {/* Tiny pill switch indicator */}
+            <span className={`
+              relative inline-block w-8 h-4 rounded-full transition
+              ${theme === 'dark' ? 'bg-brand/40' : 'bg-black/20'}
+            `}>
+              <span className={`
+                absolute top-0.5 w-3 h-3 rounded-full bg-brand transition-all
+                ${theme === 'dark' ? 'left-4' : 'left-0.5'}
+              `} />
+            </span>
+          </button>
 
           {/* Divider */}
           <div className="border-t border-black/5 dark:border-white/10" />

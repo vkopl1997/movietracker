@@ -1791,10 +1791,10 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
             picks.map((pick, idx) => (
               <motion.div
                 key={`pick-${round}-${pick.id}`}
-                initial={{ opacity: 0, y: 24, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -16, scale: 0.97 }}
-                transition={{ type: 'spring', stiffness: 320, damping: 28, delay: idx * 0.06 }}
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: idx * 0.05 }}
                 className="text-center relative group will-change-transform"
               >
                 {/* [#7] Dismiss button */}
@@ -1809,9 +1809,9 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
                 <MediaCard {...pick} />
 
                 <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.18 + idx * 0.06, duration: 0.22 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.18 + idx * 0.05, duration: 0.22 }}
                   className="mt-2 flex flex-wrap justify-center gap-1 px-0.5"
                 >
                   {tagsFor(pick, moods, occasion).map((tag) => (
@@ -1821,9 +1821,9 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
                   ))}
                 </motion.div>
                 <motion.p
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.26 + idx * 0.06, duration: 0.24 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.26 + idx * 0.05, duration: 0.24 }}
                   className="mt-1.5 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
                 >
                   {reasonFor(pick, moods, occasionLabel)}

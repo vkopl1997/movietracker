@@ -871,14 +871,14 @@ function PickPage() {
   }, [moods, occasion, era, length, avoidIds, languages, prompt, pace])
 
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-5 sm:py-7 lg:py-8">
-      <header className="text-center mb-4 lg:mb-6">
-        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1.5 sm:mb-2 flex items-center justify-center gap-3">
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5">
+      <header className="text-center mb-3 lg:mb-4">
+        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
           <span className="h-px w-6 sm:w-8 bg-brand/40" />
           AI PICK
           <span className="h-px w-6 sm:w-8 bg-brand/40" />
         </div>
-        <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl tracking-[0.02em] mb-1">
+        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
           What should I watch?
         </h1>
         <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
@@ -1752,13 +1752,13 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
-      <p className="text-center mb-3 text-sm text-neutral-500 dark:text-white/60">
+      <p className="text-center mb-2 text-xs sm:text-sm text-neutral-500 dark:text-white/60">
         For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
       </p>
       {/* Score-line area is ALWAYS reserved (~44px) so the buttons below
           don't jump up when picks empty and the bar disappears. In exhausted
           state the slot is empty but the vertical rhythm stays identical. */}
-      <div className="mb-6 min-h-[44px] flex flex-col justify-center">
+      <div className="mb-3 lg:mb-4 min-h-[44px] flex flex-col justify-center">
         {showScoreLine && (
           <>
             {topScore != null && <ScoreBar score={topScore} />}

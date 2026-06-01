@@ -96,12 +96,30 @@ const AVOID_OPTIONS = [
   { id: GENRE.war,      label: 'War' },
 ]
 
-// ── Themes (TMDb keyword names; ids fetched on demand) ───────────────
-const THEMES = [
-  'heist', 'time travel', 'revenge', 'coming of age',
-  'based on novel', 'space', 'dystopia', 'survival',
-  'road trip', 'found family', 'twist ending', 'amnesia',
+// ── Themes ────────────────────────────────────────────────────────────
+// Grouped into four categories so users scan by intent rather than scrolling
+// a flat blob. Each name is a TMDb keyword; ids are looked up on demand by
+// findKeywordId() and a miss falls back silently to "no keyword filter".
+const THEME_GROUPS = [
+  {
+    group: 'Plot device',
+    items: ['heist', 'time travel', 'revenge', 'twist ending', 'amnesia', 'conspiracy', 'kidnapping', 'survival'],
+  },
+  {
+    group: 'Setting',
+    items: ['space', 'dystopia', 'post apocalypse', 'road trip', 'high school', 'small town', 'new york', 'one night'],
+  },
+  {
+    group: 'Tone & flavor',
+    items: ['based on novel', 'based on true story', 'coming of age', 'found family', 'forbidden love', 'supernatural', 'friendship', 'feel good'],
+  },
+  {
+    group: 'Character',
+    items: ['assassin', 'spy', 'detective', 'serial killer', 'hacker', 'vampire', 'zombie', 'underdog'],
+  },
 ]
+// Flat list used by parsePrompt() — order doesn't matter for substring scan.
+const THEMES = THEME_GROUPS.flatMap((g) => g.items)
 
 const LANGUAGES = [
   { code: 'ko', label: 'Korean' },
@@ -1142,24 +1160,33 @@ function FineTune(props) {
         />
       </Row>
 
-      {/* [#4] Themes */}
-      <Row label="Themes">
-        <div className="flex flex-wrap gap-2">
-          {THEMES.map((t) => {
-            const active = pickedThemes.has(t)
-            return (
-              <motion.button key={t} onClick={() => toggleTheme(t)}
-                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  active
-                    ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
-                    : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
-                }`}
-              >
-                #{t.replace(/ /g, '-')}
-              </motion.button>
-            )
-          })}
+      {/* [#4] Themes — grouped by intent so users can scan in seconds */}
+      <Row label={`Themes${pickedThemes.size > 0 ? `  ·  ${pickedThemes.size} picked` : ''}`}>
+        <div className="space-y-2.5">
+          {THEME_GROUPS.map((g) => (
+            <div key={g.group}>
+              <div className="text-[9px] font-bold tracking-[0.22em] uppercase text-neutral-400 dark:text-white/30 mb-1.5">
+                {g.group}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {g.items.map((t) => {
+                  const active = pickedThemes.has(t)
+                  return (
+                    <motion.button key={t} onClick={() => toggleTheme(t)}
+                      whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        active
+                          ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
+                          : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+                      }`}
+                    >
+                      #{t.replace(/ /g, '-')}
+                    </motion.button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </Row>
 

@@ -991,13 +991,11 @@ function PickPage() {
                 >
                   <motion.button
                     onClick={generate}
-                    whileHover={{ scale: 1.05, boxShadow: '0 14px 50px -10px rgba(212,175,55,0.7)' }}
+                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.97 }}
-                    className="relative px-10 py-3.5 rounded-full overflow-hidden text-base font-semibold bg-gradient-to-br from-brand via-brand to-brand-dark text-black ring-1 ring-brand/40 shadow-xl shadow-brand/40 transition-shadow"
+                    className="px-10 py-3.5 rounded-2xl text-base font-semibold bg-gradient-to-br from-brand to-brand-dark text-black border border-brand/30 shadow-md shadow-brand/20 hover:shadow-lg hover:shadow-brand/30 transition"
                   >
-                    {/* Glassy top-light reflection — matches Pick again / Start over */}
-                    <span aria-hidden className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/35 to-transparent pointer-events-none" />
-                    <span className="relative">Find me something</span>
+                    Find me something
                   </motion.button>
                 </motion.div>
               )}
@@ -1838,33 +1836,21 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
         </AnimatePresence>
       </div>
 
-      {/* Buttons inherit the badge's design language:
-            • Pick again — full gold medallion (matches the check-medallion
-              inside the exhausted card): gradient from brand -> brand-dark,
-              gold ring, brand-tinted drop shadow.
-            • Start over — glass surface (matches the card body): subtle
-              white/[0.06] -> transparent gradient, white/15 border that
-              warms to brand/40 on hover, deep black drop shadow.
-          Both buttons share a top-light "glass highlight" overlay so they
-          read as the same material as the badge above them. */}
+      {/* Buttons match the badge's restraint: same rounded-2xl corner curve,
+          the badge body's exact subtle gradient for Start over, shadow-md
+          (not shadow-lg/xl), no inner glass highlight overlay. */}
       <div className="flex flex-wrap justify-center gap-3 mb-1">
         <motion.button onClick={onPickAgain} disabled={loading}
           whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
-          className="relative px-6 py-2.5 rounded-full overflow-hidden bg-gradient-to-br from-brand via-brand to-brand-dark text-black font-semibold text-sm ring-1 ring-brand/40 shadow-lg shadow-brand/40 hover:shadow-xl hover:shadow-brand/50 transition-shadow disabled:opacity-60 disabled:cursor-wait flex items-center gap-2"
+          className="px-7 py-3 rounded-2xl bg-gradient-to-br from-brand to-brand-dark text-black font-semibold text-sm border border-brand/30 shadow-md shadow-brand/20 hover:shadow-md hover:shadow-brand/30 transition disabled:opacity-60 disabled:cursor-wait flex items-center gap-2"
         >
-          {/* Glassy top-light reflection */}
-          <span aria-hidden className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/35 to-transparent pointer-events-none" />
-          <span className="relative flex items-center gap-2">
-            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
-          </span>
+          {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
         </motion.button>
         <motion.button onClick={onReset} disabled={loading}
           whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
-          className="relative px-6 py-2.5 rounded-full overflow-hidden bg-gradient-to-br from-white/[0.06] via-white/[0.03] to-transparent border border-white/15 hover:border-brand/40 text-sm text-neutral-700 dark:text-white/80 shadow-lg shadow-black/30 hover:shadow-xl hover:shadow-brand/20 transition disabled:opacity-50"
+          className="px-7 py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 hover:border-brand/30 text-sm text-neutral-700 dark:text-white/80 shadow-md shadow-black/20 transition disabled:opacity-50"
         >
-          {/* Subtle top-light reflection — quieter than the gold sibling */}
-          <span aria-hidden className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-          <span className="relative">Start over</span>
+          Start over
         </motion.button>
       </div>
 

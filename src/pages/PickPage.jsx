@@ -600,7 +600,13 @@ function PickPage() {
 
   async function generate() {
     if (!canGenerate) return
-    setLoading(true); setError(null); setPicks(null); setTopScore(null)
+    // Don't clear picks/topScore here — keep the previous picks (or the
+    // exhausted card) on screen during the fetch. The "Pick again" button
+    // spinner already signals work; flashing skeletons in between just made
+    // the transition to the next state feel disconnected. When the new
+    // state arrives, AnimatePresence transitions directly from the stale
+    // picks to the new picks (or to the exhausted card).
+    setLoading(true); setError(null)
 
     const occasionOpt = OCCASIONS.find((o) => o.value === occasion) || {}
     const eraOpt    = ERAS.find((e) => e.value === era)       || {}
@@ -1774,10 +1780,12 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
         transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
         className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px]"
       >
+        {/* No skeleton intermediate state — we keep the prior picks (or
+            exhausted card) on screen during the fetch and let AnimatePresence
+            crossfade directly to whatever comes back. The "Pick again" button
+            spinner is the only loading indicator needed. */}
         <AnimatePresence mode="wait">
-          {loading ? (
-            [0, 1, 2].map((i) => <SkeletonPickCard key={`skel-${round}-${i}`} index={i} />)
-          ) : picks?.length === 0 ? (
+          {picks?.length === 0 ? (
             <ExhaustedState key="exhausted" className="sm:col-span-3" />
           ) : picks?.length > 0 ? (
             picks.map((pick, idx) => (

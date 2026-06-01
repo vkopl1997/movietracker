@@ -993,7 +993,7 @@ function PickPage() {
                     onClick={generate}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.97 }}
-                    className="w-full max-w-xs mx-auto py-3.5 rounded-2xl text-base font-semibold bg-gradient-to-br from-brand/20 to-brand/10 hover:from-brand hover:to-brand-dark text-brand hover:text-black border border-brand/30 hover:border-brand/60 shadow-md shadow-brand/10 hover:shadow-brand/30 transition"
+                    className="w-full max-w-xs mx-auto py-3.5 rounded-3xl text-base font-semibold bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition"
                   >
                     Find me something
                   </motion.button>
@@ -1847,13 +1847,13 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       <div className="flex justify-between max-w-xs mx-auto mb-1">
         <motion.button onClick={onPickAgain} disabled={loading}
           whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
-          className="w-[45%] py-3 rounded-2xl bg-gradient-to-br from-brand/20 to-brand/10 hover:from-brand hover:to-brand-dark text-brand hover:text-black font-semibold text-sm border border-brand/30 hover:border-brand/60 shadow-md shadow-brand/10 hover:shadow-brand/30 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          className="w-[45%] py-3 rounded-3xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
         >
           {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
         </motion.button>
         <motion.button onClick={onReset} disabled={loading}
           whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
-          className="w-[45%] py-3 rounded-2xl bg-gradient-to-br from-brand/20 to-brand/10 hover:from-brand hover:to-brand-dark text-brand hover:text-black font-semibold text-sm border border-brand/30 hover:border-brand/60 shadow-md shadow-brand/10 hover:shadow-brand/30 transition disabled:opacity-50 flex items-center justify-center"
+          className="w-[45%] py-3 rounded-3xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-50 flex items-center justify-center"
         >
           Start over
         </motion.button>

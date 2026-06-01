@@ -1769,17 +1769,14 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
         </div>
       )}
 
-      {/* Container stays grid + min-height across all three states (loading
-          skeletons, real picks, exhausted card) so transitioning between
-          them doesn't reflow the page. The exhausted card spans all 3 cols.
-          `layout` tweens the container's height when content shrinks/grows
-          between skeleton (~270px) and exhausted card (~440px) so the
-          transition stops feeling like a hard cut. */}
-      <motion.div
-        layout
-        transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px]"
-      >
+      {/* Fixed grid height on sm+ so the buttons below never drift when
+          content swaps between picks (~380px) and the exhausted card
+          (~340px). Both states get vertically centered inside the slot
+          via `items-center`, so the smaller exhausted card sits in the
+          middle instead of pinning to the top. Mobile keeps min-h-[280px]
+          only — stacked cards there are taller than any single state so a
+          fixed sm-height would just create dead space. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px] sm:min-h-[400px] sm:items-center">
         {/* No skeleton intermediate state — we keep the prior picks (or
             exhausted card) on screen during the fetch and let AnimatePresence
             crossfade directly to whatever comes back. The "Pick again" button
@@ -1812,7 +1809,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.18 + idx * 0.05, duration: 0.22 }}
-                  className="mt-2 flex flex-wrap justify-center gap-1 px-0.5"
+                  className="mt-1.5 flex flex-wrap justify-center gap-1 px-0.5"
                 >
                   {tagsFor(pick, moods, occasion).map((tag) => (
                     <span key={tag} className="text-[9px] sm:text-[10px] font-medium text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
@@ -1824,7 +1821,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.26 + idx * 0.05, duration: 0.24 }}
-                  className="mt-1.5 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
+                  className="mt-1 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
                 >
                   {reasonFor(pick, moods, occasionLabel)}
                 </motion.p>
@@ -1832,7 +1829,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
             ))
           ) : null}
         </AnimatePresence>
-      </motion.div>
+      </div>
 
       <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-1">
         <motion.button onClick={onPickAgain} disabled={loading}
@@ -1980,7 +1977,7 @@ function ExhaustedState({ className = '' }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.22 } }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className={`relative mx-auto max-w-md text-center px-7 py-9 rounded-3xl overflow-hidden bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 ${className}`}
+      className={`relative mx-auto max-w-md text-center px-7 py-12 rounded-3xl overflow-hidden bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 ${className}`}
     >
       {/* Decorative glow blobs */}
       <div className="absolute -top-16 -right-16 w-48 h-48 bg-brand/15 rounded-full blur-3xl pointer-events-none" />

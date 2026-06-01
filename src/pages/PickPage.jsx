@@ -1755,19 +1755,24 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       <p className="text-center mb-3 text-sm text-neutral-500 dark:text-white/60">
         For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
       </p>
-      {showScoreLine && (
-        <div className="mb-6">
-          {topScore != null && <ScoreBar score={topScore} />}
-          {(tasteProfile || topGenreLabels.length > 0) && (
-            <p className="text-center mt-2 text-[11px] text-neutral-400 dark:text-white/40">
-              {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
-              {topGenreLabels.length > 0 && (
-                <> · weights {topGenreLabels.join(', ')}</>
-              )}
-            </p>
-          )}
-        </div>
-      )}
+      {/* Score-line area is ALWAYS reserved (~44px) so the buttons below
+          don't jump up when picks empty and the bar disappears. In exhausted
+          state the slot is empty but the vertical rhythm stays identical. */}
+      <div className="mb-6 min-h-[44px] flex flex-col justify-center">
+        {showScoreLine && (
+          <>
+            {topScore != null && <ScoreBar score={topScore} />}
+            {(tasteProfile || topGenreLabels.length > 0) && (
+              <p className="text-center mt-2 text-[11px] text-neutral-400 dark:text-white/40">
+                {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
+                {topGenreLabels.length > 0 && (
+                  <> · weights {topGenreLabels.join(', ')}</>
+                )}
+              </p>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Fixed grid height on sm+ so the buttons below never drift when
           content swaps between picks (~380px) and the exhausted card
@@ -1977,7 +1982,7 @@ function ExhaustedState({ className = '' }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.22 } }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className={`relative mx-auto max-w-md text-center px-7 py-12 rounded-3xl overflow-hidden bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 ${className}`}
+      className={`relative mx-auto max-w-md px-7 py-12 rounded-3xl overflow-hidden bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 sm:min-h-[380px] flex flex-col items-center justify-center text-center ${className}`}
     >
       {/* Decorative glow blobs */}
       <div className="absolute -top-16 -right-16 w-48 h-48 bg-brand/15 rounded-full blur-3xl pointer-events-none" />

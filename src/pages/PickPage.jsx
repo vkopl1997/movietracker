@@ -1,17 +1,25 @@
 // PickPage — "What should I watch tonight?"
 //
-// Two-question guided picker (mood + watching with whom). The "intelligence"
-// is in the algorithm:
-//   • Mood → TMDb genre ids (multi-genre query)
-//   • Family company → MPAA cert <= PG
-//   • Variety: rotates between three sort orders + 2-page fetch each
-//     time the user clicks "Pick again"
-//   • Memory: tracks every movie id we've already shown this session
+// 9 layers of targeting:
+//   1. Library taste profile  — auto-bias toward genres in user's favorites
+//   2. Free-text prompt        — keyword-matched to genres/themes/filters
+//   3. Similar-to reference    — type a movie you love → biases toward it
+//   4. Theme keywords          — heist, time-travel, coming-of-age, etc.
+//   5. Multi-mood selection    — pick up to 2 moods to combine
+//   6. Occasion-based picker   — "first date", "hangover sunday", etc.
+//   7. "Show me less" feedback — ✕ on a card down-weights its genres
+//   8. International filter    — Korean, Japanese, French, Spanish, etc.
+//   9. Pace slider             — slow burn ←→ fast-paced
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useFavorites } from '../lib/FavoritesContext'
-import { discoverMovies } from '../lib/tmdb'
+import {
+  discoverMovies,
+  searchMulti,
+  findKeywordId,
+  getMovieRecommendations,
+} from '../lib/tmdb'
 import { usePageTitle } from '../lib/usePageTitle'
 import MediaCard from '../components/MediaCard'
 
@@ -22,44 +30,15 @@ const GENRE = {
   scifi:  878,   thriller: 53,    war: 10752,    western: 37,
 }
 
-// Reverse map: TMDb genre id → short kebab name we use in #tags
-const GENRE_TAG = {
-  28: 'action',  12: 'adventure', 16: 'animation', 35: 'comedy',
-  80: 'crime',   99: 'documentary', 18: 'drama',    10751: 'family',
-  14: 'fantasy', 36: 'history',  27: 'horror',     10402: 'music',
-  9648: 'mystery', 10749: 'romance', 878: 'scifi', 53: 'thriller',
-  10752: 'war',    37: 'western', 10770: 'tv',
+const GENRE_NAMES = {
+  28: 'action',   12: 'adventure', 16: 'animation', 35: 'comedy',
+  80: 'crime',    99: 'doc',       18: 'drama',     10751: 'family',
+  14: 'fantasy',  36: 'history',   27: 'horror',    10402: 'music',
+  9648: 'mystery', 10749: 'romance', 878: 'scifi',  53: 'thriller',
+  10752: 'war',   37: 'western',
 }
 
-// Derive a small set of hashtags for a pick so users see WHY it was chosen
-// at a glance. Tags are pulled from real data (TMDb genres, rating, year)
-// plus the user's mood/company answers.
-function tagsFor(pick, mood, company) {
-  const tags = []
-
-  // 2 genre tags
-  for (const id of (pick.genreIds || []).slice(0, 2)) {
-    if (GENRE_TAG[id]) tags.push(GENRE_TAG[id])
-  }
-
-  // Quality
-  if (pick.rating >= 8)        tags.push('critically-loved')
-  else if (pick.rating >= 7.5) tags.push('highly-rated')
-
-  // Era — only when it's notable
-  const y = pick.year
-  if (y && y < 1990)       tags.push('classic')
-  else if (y && y >= 2020) tags.push('fresh')
-
-  // Company match
-  if (company === 'family')        tags.push('family-friendly')
-  else if (company === 'partner')  tags.push('date-night')
-  else if (company === 'friends')  tags.push('group-watch')
-
-  // Cap at 5 unique tags
-  return [...new Set(tags)].slice(0, 5)
-}
-
+// ── Moods (multi-select up to 2) ─────────────────────────────────────
 const MOODS = [
   { value: 'funny',    label: 'Funny / happy',       genres: [GENRE.comedy, GENRE.animation, GENRE.family] },
   { value: 'intense',  label: 'Intense / thrilling',  genres: [GENRE.thriller, GENRE.action, GENRE.crime, GENRE.mystery] },
@@ -71,137 +50,330 @@ const MOODS = [
   { value: 'surprise', label: 'Surprise me',           genres: [] },
 ]
 
-const COMPANY = [
-  { value: 'alone',   label: 'Alone' },
-  { value: 'partner', label: 'With a partner' },
-  { value: 'friends', label: 'With friends' },
-  { value: 'family',  label: 'With family',  familyFriendly: true },
+// ── Occasions (replaces "watching with") ─────────────────────────────
+const OCCASIONS = [
+  { value: 'hangover',  label: 'Hangover Sunday',        runtimeMax: 110, minRating: 7.2, sortBy: 'vote_average.desc' },
+  { value: 'firstdate', label: 'First date',              runtimeMin: 90,  runtimeMax: 130, withoutGenres: [GENRE.horror, GENRE.war] },
+  { value: 'friends',   label: 'Friends over',            withoutGenres: [GENRE.drama, GENRE.romance] },
+  { value: 'family',    label: 'With family',             familyFriendly: true },
+  { value: 'partner',   label: 'Partner — quiet night',   withoutGenres: [GENRE.horror, GENRE.war] },
+  { value: 'alone',     label: 'Alone' },
+  { value: 'late',      label: '3 AM insomnia',           genres: [GENRE.mystery, GENRE.thriller, GENRE.scifi] },
+  { value: 'rainy',     label: 'Rainy afternoon',         runtimeMin: 100, genres: [GENRE.drama, GENRE.romance] },
+  { value: 'background', label: 'Just background',         familyFriendly: false, sortBy: 'popularity.desc' },
 ]
 
 const ERAS = [
   { value: 'any',     label: 'Any era' },
-  { value: 'modern',  label: 'Modern · 2015+',       releaseAfter:  2015 },
-  { value: 'recent',  label: '2000s & later',        releaseAfter:  2000 },
-  { value: 'classic', label: 'Pre-2000 classics',    releaseBefore: 1999 },
+  { value: 'modern',  label: 'Modern (2015+)',     releaseAfter: 2015 },
+  { value: 'recent',  label: 'Recent (2000-2015)', releaseAfter: 2000, releaseBefore: 2015 },
+  { value: 'classic', label: 'Pre-2000 classics',  releaseBefore: 1999 },
 ]
 
 const LENGTHS = [
   { value: 'any',    label: 'Any length' },
   { value: 'short',  label: 'Under 90 min',  runtimeMax: 90 },
-  { value: 'medium', label: '90–130 min',    runtimeMin: 80, runtimeMax: 130 },
+  { value: 'medium', label: '90-130 min',    runtimeMin: 80, runtimeMax: 130 },
   { value: 'long',   label: '2+ hours',      runtimeMin: 120 },
 ]
 
-// Genres users might want to actively avoid for the night
 const AVOID_OPTIONS = [
-  { id: 27,    label: 'Horror' },
-  { id: 10402, label: 'Musical' },
-  { id: 99,    label: 'Documentary' },
-  { id: 10749, label: 'Romance' },
-  { id: 18,    label: 'Heavy drama' },
-  { id: 10752, label: 'War' },
+  { id: GENRE.horror,   label: 'Horror' },
+  { id: GENRE.music,    label: 'Musical' },
+  { id: GENRE.doc,      label: 'Documentary' },
+  { id: GENRE.romance,  label: 'Romance' },
+  { id: GENRE.drama,    label: 'Heavy drama' },
+  { id: GENRE.war,      label: 'War' },
 ]
+
+// ── Themes (TMDb keyword names; ids fetched on demand) ───────────────
+const THEMES = [
+  'heist', 'time travel', 'revenge', 'coming of age',
+  'based on novel', 'space', 'dystopia', 'survival',
+  'road trip', 'found family', 'twist ending', 'amnesia',
+]
+
+const LANGUAGES = [
+  { code: 'ko', label: 'Korean' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'fr', label: 'French' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'it', label: 'Italian' },
+  { code: 'de', label: 'German' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'sv', label: 'Scandinavian' },
+]
+
+// ── Free-text prompt → filter dispatcher ─────────────────────────────
+// Tiny "NLP" — turns "twisty mystery without too much violence" into
+// concrete filter tweaks. Keyword spotting, no AI.
+function parsePrompt(text) {
+  const t = (text || '').toLowerCase()
+  if (!t.trim()) return {}
+  const filters = { boostGenres: [], excludeGenres: [], themes: [] }
+  const keyword = (re, fn) => { if (re.test(t)) fn(filters) }
+
+  // Direct genre nudges
+  keyword(/\b(funny|laugh|comedy|hilarious)\b/, f => f.boostGenres.push(GENRE.comedy))
+  keyword(/\b(scary|horror|spook|haunt)\b/,     f => f.boostGenres.push(GENRE.horror))
+  keyword(/\b(sci-?fi|space|alien|future)\b/,   f => f.boostGenres.push(GENRE.scifi))
+  keyword(/\b(romance|love|date)\b/,            f => f.boostGenres.push(GENRE.romance))
+  keyword(/\b(thrill|tense|edge.of)\b/,         f => f.boostGenres.push(GENRE.thriller))
+  keyword(/\b(epic|adventure|grand)\b/,         f => f.boostGenres.push(GENRE.adventure))
+  keyword(/\b(animate|cartoon|pixar)\b/,        f => f.boostGenres.push(GENRE.animation))
+  keyword(/\b(drama|emotional|serious)\b/,      f => f.boostGenres.push(GENRE.drama))
+
+  // Exclusions
+  keyword(/\b(not.+(violent|gory|scary))|no\s+(horror|gore)\b/, f => {
+    f.excludeGenres.push(GENRE.horror)
+  })
+  keyword(/\b(not.+sad|no\s+drama|nothing\s+heavy)\b/, f => f.excludeGenres.push(GENRE.drama))
+  keyword(/\b(no\s+romance|not.+romantic)\b/,         f => f.excludeGenres.push(GENRE.romance))
+
+  // Theme keywords spotted in text
+  for (const theme of THEMES) {
+    if (t.includes(theme)) filters.themes.push(theme)
+  }
+  if (/\b(twist|twisty|surprise.ending)\b/.test(t)) filters.themes.push('twist ending')
+  if (/\b(time.travel)\b/.test(t))                  filters.themes.push('time travel')
+
+  return filters
+}
 
 const SORT_ROTATION = ['vote_average.desc', 'popularity.desc', 'vote_count.desc']
 
-function reasonFor(item, mood, company) {
+// Reasoning sentence template based on user's selections
+function reasonFor(item, moods, occasionLabel) {
   const ratingTag = item.rating >= 8 ? 'Critically loved' : item.rating >= 7 ? 'Highly rated' : 'Well reviewed'
-  const moodPhrase = {
-    funny:    'a lift for a happy night',
-    intense:  'tension and adrenaline',
-    deep:     'something that stays with you',
-    cozy:     'soft, comforting, easy to put on',
-    epic:     'a big-screen ride from the couch',
+  const moodPhrases = {
+    funny:    'fun and lifting',
+    intense:  'tense and gripping',
+    deep:     'one that lingers',
+    cozy:     'soft and comforting',
+    epic:     'big-screen scale',
     dark:     'gritty and bold',
     classic:  'an enduring favorite',
-    surprise: 'something a little different',
-  }[mood] || 'a solid pick'
-  const companyPhrase = {
-    family:  'and works for all ages',
-    friends: 'and fun in a group',
-    partner: 'and great for a quiet night in',
-    alone:   '',
-  }[company] || ''
-  return `${ratingTag} · ${moodPhrase}${companyPhrase ? ` · ${companyPhrase}` : ''}.`
+    surprise: 'a little different',
+  }
+  const moodPart = moods.map((m) => moodPhrases[m] || 'a solid pick').join(', ')
+  return `${ratingTag} · ${moodPart}${occasionLabel ? ` · ${occasionLabel.toLowerCase()}` : ''}.`
+}
+
+// Hashtags per pick
+function tagsFor(pick, moods, occasion) {
+  const tags = []
+  for (const id of (pick.genreIds || []).slice(0, 2)) {
+    const name = GENRE_NAMES[id]
+    if (name) tags.push(name)
+  }
+  if (pick.rating >= 8) tags.push('critically-loved')
+  else if (pick.rating >= 7.5) tags.push('highly-rated')
+  if (pick.year && pick.year < 1990) tags.push('classic')
+  else if (pick.year && pick.year >= 2020) tags.push('fresh')
+  if (occasion === 'family')    tags.push('family-friendly')
+  if (occasion === 'firstdate') tags.push('date-night')
+  if (occasion === 'friends')   tags.push('group-watch')
+  if (moods.length > 1)         tags.push(`${moods[0]}-${moods[1]}`)
+  return [...new Set(tags)].slice(0, 5)
 }
 
 function PickPage() {
   usePageTitle('What should I watch?')
   const { items } = useFavorites()
 
-  const [step, setStep]       = useState(1)
-  const [mood, setMood]       = useState(null)
-  const [company, setCompany] = useState(null)
+  // ── Required state ────────────────────────────────────────────────
+  const [moods, setMoods]       = useState([])               // [#5] multi-select
+  const [occasion, setOccasion] = useState(null)              // [#6]
 
-  // Optional / advanced filters
+  // ── Optional state ────────────────────────────────────────────────
   const [era, setEra]               = useState('any')
   const [length, setLength]         = useState('any')
+  const [pace, setPace]             = useState(50)            // [#9] 0=slow, 100=fast
   const [avoidIds, setAvoidIds]     = useState(() => new Set())
+  const [pickedThemes, setPickedThemes] = useState(() => new Set())  // [#4]
+  const [languages, setLanguages]   = useState(() => new Set())  // [#8]
+  const [prompt, setPrompt]         = useState('')             // [#2]
+  const [similarTo, setSimilarTo]   = useState(null)           // [#3] {id, title}
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
-  function toggleAvoid(id) {
-    setAvoidIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
+  // ── Session memory ────────────────────────────────────────────────
+  const [seenIds, setSeenIds]       = useState(() => new Set())
+  const [downGenres, setDownGenres] = useState({})            // [#7] genreId → count
+  const [sortIdx, setSortIdx]       = useState(0)
+  const [round, setRound]           = useState(0)
+  const [hasPicked, setHasPicked]   = useState(false)
 
-  const [loading, setLoading] = useState(false)
-  const [picks, setPicks]     = useState(null)
-  const [error, setError]     = useState(null)
-  const [round, setRound]     = useState(0)   // bumps each "Pick again" — drives AnimatePresence key
-  const [hasPicked, setHasPicked] = useState(false)   // once true, we never leave the results layout
-
-  const [seenIds, setSeenIds] = useState(() => new Set())
-  const [sortIdx, setSortIdx] = useState(0)
+  // ── Run state ─────────────────────────────────────────────────────
+  const [loading, setLoading]       = useState(false)
+  const [picks, setPicks]           = useState(null)
+  const [error, setError]           = useState(null)
 
   const watchedIds = useMemo(
     () => new Set(items.filter((i) => i.isWatched && i.mediaType === 'movie').map((i) => i.id)),
     [items]
   )
 
+  // ── [#1] Library taste profile — analyze user's favorites ─────────
+  // Counts year buckets + rating preference + media type ratio.
+  // Genre data isn't stored on favorites yet (future work), so we infer
+  // taste from years + tmdb ratings the user has favorited.
+  const tasteProfile = useMemo(() => {
+    const favs = items.filter((i) => i.isFavorite)
+    if (favs.length < 3) return null
+
+    let modern = 0, recent = 0, classic = 0
+    let avgRating = 0, rated = 0
+    let movies = 0, tv = 0
+    for (const f of favs) {
+      if (f.year) {
+        if (f.year >= 2015) modern++
+        else if (f.year >= 2000) recent++
+        else classic++
+      }
+      if (typeof f.rating === 'number') { avgRating += f.rating; rated++ }
+      if (f.mediaType === 'movie') movies++
+      else if (f.mediaType === 'tv') tv++
+    }
+    avgRating = rated ? Math.round((avgRating / rated) * 10) / 10 : null
+
+    // Find the dominant era
+    let dominantEra = null
+    const eraMax = Math.max(modern, recent, classic)
+    if (eraMax >= 2) {
+      if (modern === eraMax)       dominantEra = 'modern'
+      else if (recent === eraMax)  dominantEra = 'recent'
+      else                         dominantEra = 'classic'
+    }
+
+    return { dominantEra, avgRating, movies, tv, totalFavs: favs.length }
+  }, [items])
+
+  function toggleSet(set, value) {
+    const next = new Set(set)
+    next.has(value) ? next.delete(value) : next.add(value)
+    return next
+  }
+
+  function toggleMood(value) {
+    setMoods((prev) => {
+      if (prev.includes(value)) return prev.filter((v) => v !== value)
+      if (prev.length >= 2)      return [prev[1], value]   // rotate out the older one
+      return [...prev, value]
+    })
+  }
+
+  // ── [#3] Similar-to autocomplete ────────────────────────────────────
+  const [similarQuery, setSimilarQuery] = useState('')
+  const [similarResults, setSimilarResults] = useState([])
+  const [similarOpen, setSimilarOpen] = useState(false)
+  useEffect(() => {
+    const q = similarQuery.trim()
+    if (!q || similarTo) { setSimilarResults([]); return }
+    let cancelled = false
+    const t = setTimeout(() => {
+      searchMulti(q)
+        .then((res) => {
+          if (cancelled) return
+          setSimilarResults(res.filter((r) => r.mediaType === 'movie').slice(0, 6))
+        })
+        .catch(() => !cancelled && setSimilarResults([]))
+    }, 220)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [similarQuery, similarTo])
+
+  // ── Generate ──────────────────────────────────────────────────────
   async function generate() {
-    if (!mood || !company) return
-    setLoading(true); setError(null)
-    // Keep the existing picks visible while loading the next round (only the
-    // VERY first call has no picks to keep — that one shows the full loader).
-    if (!hasPicked) setPicks(null)
+    if (moods.length === 0 || !occasion) return
+    setLoading(true); setError(null); setPicks(null)
 
-    const moodOpt    = MOODS.find((m) => m.value === mood)    || {}
-    const companyOpt = COMPANY.find((c) => c.value === company) || {}
-
+    const occasionOpt = OCCASIONS.find((o) => o.value === occasion) || {}
     const eraOpt    = ERAS.find((e) => e.value === era)       || {}
     const lengthOpt = LENGTHS.find((l) => l.value === length) || {}
+    const promptFilters = parsePrompt(prompt)
+
+    // Merge mood genres from all selected moods (deduped)
+    const moodGenres = [...new Set(moods.flatMap((m) => MOODS.find((x) => x.value === m)?.genres || []))]
+    // Boost from prompt
+    const genres = [...new Set([...moodGenres, ...promptFilters.boostGenres])]
+
+    // Library taste profile bias [#1]: nudge minRating upward if user has high standards
+    let minRating = 7
+    if (tasteProfile?.avgRating && tasteProfile.avgRating >= 8) minRating = 7.5
+    // If user has dominant era, prefer it when user hasn't set one explicitly
+    let releaseAfter  = eraOpt.releaseAfter  ?? occasionOpt.releaseAfter
+    let releaseBefore = eraOpt.releaseBefore ?? occasionOpt.releaseBefore ?? MOODS.find(m => m.value === moods[0])?.beforeYear
+    if (era === 'any' && tasteProfile?.dominantEra && !releaseAfter && !releaseBefore) {
+      if      (tasteProfile.dominantEra === 'modern')  releaseAfter  = 2015
+      else if (tasteProfile.dominantEra === 'recent')  { releaseAfter = 2000; releaseBefore = 2015 }
+      else if (tasteProfile.dominantEra === 'classic') releaseBefore = 1999
+    }
+
+    // Down-weighted genres from "Show me less" feedback [#7]
+    const downGenreIds = Object.entries(downGenres)
+      .filter(([, count]) => count >= 1)
+      .map(([id]) => Number(id))
+
+    // Look up theme keyword ids [#4]
+    let keywords = []
+    const themeNames = [...pickedThemes, ...promptFilters.themes]
+    if (themeNames.length > 0) {
+      const ids = await Promise.all(themeNames.map((n) => findKeywordId(n)))
+      keywords = ids.filter(Boolean)
+    }
+
+    // Pace [#9] → sort axis bias
+    let sortBy = SORT_ROTATION[sortIdx % SORT_ROTATION.length]
+    if (occasionOpt.sortBy) sortBy = occasionOpt.sortBy
+    // pace 0-30 → slow (vote_average), 30-70 → mixed, 70-100 → fast (popularity)
+    if (pace < 30)       sortBy = 'vote_average.desc'
+    else if (pace > 70)  sortBy = 'popularity.desc'
 
     const baseFilter = {
-      genres: moodOpt.genres || [],
-      withoutGenres: [...avoidIds],          // genres the user wants to skip
-      familyFriendly: !!companyOpt.familyFriendly,
-      minRating: 7,
+      genres,
+      withoutGenres: [
+        ...avoidIds,
+        ...(occasionOpt.withoutGenres || []),
+        ...(promptFilters.excludeGenres || []),
+        ...downGenreIds,
+      ],
+      keywords,
+      withLanguages: [...languages],
+      familyFriendly: !!occasionOpt.familyFriendly,
+      minRating: Math.max(minRating, occasionOpt.minRating || 0),
       minVoteCount: 300,
-      sortBy: SORT_ROTATION[sortIdx % SORT_ROTATION.length],
-      // Era filter overrides mood's classic year if user set one explicitly
-      releaseAfter:  eraOpt.releaseAfter,
-      releaseBefore: eraOpt.releaseBefore || moodOpt.beforeYear,
-      // Length filter
-      runtimeMin: lengthOpt.runtimeMin,
-      runtimeMax: lengthOpt.runtimeMax,
+      sortBy,
+      releaseAfter,
+      releaseBefore,
+      runtimeMin: lengthOpt.runtimeMin ?? occasionOpt.runtimeMin,
+      runtimeMax: lengthOpt.runtimeMax ?? occasionOpt.runtimeMax,
     }
 
     try {
+      let pool = []
+
+      // [#3] Similar-to reference: use recommendations endpoint first
+      if (similarTo?.id) {
+        const recs = await getMovieRecommendations(similarTo.id)
+        // Filter by language and exclusions roughly
+        pool.push(...recs)
+      }
+
+      // Always also pull a discover query for variety
       const pageA = Math.floor(Math.random() * 3) + 1
       const pageB = pageA + 3
       const [resA, resB] = await Promise.all([
         discoverMovies({ ...baseFilter, page: pageA }),
         discoverMovies({ ...baseFilter, page: pageB }),
       ])
-      let pool = [...resA, ...resB]
+      pool.push(...resA, ...resB)
 
+      // Dedupe
       const dedupe = new Set()
       pool = pool.filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
+      // Skip seen + watched
       pool = pool.filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
 
+      // Relax if too few
       if (pool.length < 3) {
         const relaxed = await discoverMovies({
           ...baseFilter, minRating: 6, minVoteCount: 100, page: Math.floor(Math.random() * 4) + 1,
@@ -220,7 +392,6 @@ function PickPage() {
 
       const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
       setPicks(shuffled)
-      setHasPicked(true)
       setSeenIds((prev) => {
         const next = new Set(prev)
         for (const m of shuffled) next.add(m.id)
@@ -228,13 +399,9 @@ function PickPage() {
       })
       setSortIdx((i) => i + 1)
       setRound((r) => r + 1)
+      setHasPicked(true)
 
-      // Auto-scroll to top so the results are in view immediately.
-      // Without this, users who expanded the optional section and scrolled
-      // down to reach the submit button stay parked below the new results.
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      })
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
     } catch (err) {
       setError(err.message || 'Something went wrong picking movies.')
     } finally {
@@ -243,157 +410,75 @@ function PickPage() {
   }
 
   function reset() {
-    setStep(1); setMood(null); setCompany(null); setPicks(null); setError(null)
-    setSeenIds(new Set()); setSortIdx(0); setRound(0); setHasPicked(false)
-    setEra('any'); setLength('any'); setAvoidIds(new Set()); setAdvancedOpen(false)
+    setMoods([]); setOccasion(null); setEra('any'); setLength('any')
+    setPace(50); setAvoidIds(new Set()); setPickedThemes(new Set())
+    setLanguages(new Set()); setPrompt(''); setSimilarTo(null)
+    setSimilarQuery(''); setSimilarResults([])
+    setSeenIds(new Set()); setDownGenres({}); setSortIdx(0); setRound(0)
+    setHasPicked(false); setPicks(null); setError(null)
   }
 
-  // Quick string of active optional filters — shown on the toggle row
+  // [#7] "Show me less" — dismiss a card, down-weight its genres
+  function dismissPick(pick) {
+    setPicks((prev) => prev?.filter((p) => p.id !== pick.id))
+    setSeenIds((prev) => new Set(prev).add(pick.id))
+    setDownGenres((prev) => {
+      const next = { ...prev }
+      for (const gid of (pick.genreIds || []).slice(0, 2)) {
+        next[gid] = (next[gid] || 0) + 1
+      }
+      return next
+    })
+  }
+
+  // Quick summary of what's active in the optional section
   const advancedSummary = useMemo(() => {
     const parts = []
-    if (era !== 'any')    parts.push(ERAS.find((e) => e.value === era)?.label)
-    if (length !== 'any') parts.push(LENGTHS.find((l) => l.value === length)?.label)
-    if (avoidIds.size)    parts.push(`avoiding ${avoidIds.size}`)
+    if (era !== 'any')     parts.push(ERAS.find((e) => e.value === era)?.label)
+    if (length !== 'any')  parts.push(LENGTHS.find((l) => l.value === length)?.label)
+    if (avoidIds.size)     parts.push(`-${avoidIds.size}`)
+    if (pickedThemes.size) parts.push(`+${pickedThemes.size} themes`)
+    if (languages.size)    parts.push(`${languages.size} langs`)
+    if (similarTo)         parts.push(`like ${similarTo.title}`)
+    if (prompt.trim())     parts.push('custom prompt')
+    if (pace !== 50)       parts.push(pace < 50 ? 'slow' : 'fast')
     return parts.join(' · ')
-  }, [era, length, avoidIds])
+  }, [era, length, avoidIds, pickedThemes, languages, similarTo, prompt, pace])
 
-  // ── Render ────────────────────────────────────────────────────────
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-      <header className="text-center mb-4">
-        <div className="text-[11px] font-bold tracking-[0.25em] text-brand uppercase mb-1 inline-flex items-center gap-2">
-          <span className="inline-block w-6 h-px bg-brand/50" />
-          AI Pick
-          <span className="inline-block w-6 h-px bg-brand/50" />
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <header className="text-center mb-6">
+        <div className="text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-2 flex items-center justify-center gap-3">
+          <span className="h-px w-8 bg-brand/40" />
+          AI PICK
+          <span className="h-px w-8 bg-brand/40" />
         </div>
-        <h1 className="font-display text-3xl sm:text-4xl tracking-[0.02em] mb-1">
+        <h1 className="font-display text-4xl sm:text-5xl tracking-[0.02em] mb-1">
           What should I watch?
         </h1>
         <p className="text-sm text-neutral-500 dark:text-white/60">
-          Two quick questions — we'll find tonight's pick.
+          Two quick questions — or dial it in.
         </p>
       </header>
 
-      {/* One AnimatePresence at the top so form→loading→results crossfade cleanly */}
       <AnimatePresence mode="wait">
         {hasPicked ? (
-          // ─── RESULTS LAYOUT (stays mounted across Pick again) ───────
-          <motion.section
+          <ResultsView
             key="results"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <p className="text-center mb-3 text-xs sm:text-sm text-neutral-500 dark:text-white/60">
-              For a <strong>{MOODS.find((m) => m.value === mood)?.label.toLowerCase()}</strong>{' '}
-              watch {COMPANY.find((c) => c.value === company)?.label.toLowerCase()}:
-            </p>
-
-            {/* Card grid — slightly wider than the form view but still compact
-                enough to keep the whole page in the viewport. */}
-            <div className="grid grid-cols-3 gap-3 sm:gap-5 mb-5 max-w-2xl mx-auto">
-              <AnimatePresence mode="wait">
-                {loading ? (
-                  // SKELETONS — elaborate, branded, structured like real cards
-                  [0, 1, 2].map((i) => <SkeletonPickCard key={`skel-${round}-${i}`} index={i} />)
-                ) : picks ? (
-                  // REAL CARDS — dealt-in animation by round (changes each Pick again)
-                  picks.map((pick, idx) => (
-                    <motion.div
-                      key={`pick-${round}-${pick.id}`}
-                      initial={{ opacity: 0, y: 80, rotateX: 25, scale: 0.85 }}
-                      animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -40, scale: 0.95 }}
-                      transition={{
-                        type: 'spring',
-                        stiffness: 220,
-                        damping: 22,
-                        delay: idx * 0.18,
-                      }}
-                      className="text-center"
-                      style={{ perspective: 800 }}
-                    >
-                      <MediaCard {...pick} />
-
-                      {/* Hashtag row — appears just after the card */}
-                      <motion.div
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + idx * 0.18, duration: 0.35 }}
-                        className="mt-2 flex flex-wrap justify-center gap-1 px-0.5"
-                      >
-                        {tagsFor(pick, mood, company).map((tag) => (
-                          <span
-                            key={tag}
-                            className="
-                              text-[9px] sm:text-[10px] font-medium
-                              text-brand bg-brand/10
-                              border border-brand/20
-                              px-1.5 py-0.5 rounded-full
-                              leading-none whitespace-nowrap
-                            "
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                      </motion.div>
-
-                      <motion.p
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.7 + idx * 0.18, duration: 0.4 }}
-                        className="mt-1.5 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
-                      >
-                        {reasonFor(pick, mood, company)}
-                      </motion.p>
-                    </motion.div>
-                  ))
-                ) : null}
-              </AnimatePresence>
-            </div>
-
-            {/* Action buttons — ALWAYS visible, never unmount during loading */}
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-1">
-              <motion.button
-                onClick={generate}
-                disabled={loading}
-                whileHover={loading ? {} : { scale: 1.04 }}
-                whileTap={loading ? {} : { scale: 0.96 }}
-                className="px-5 py-2.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition disabled:opacity-60 disabled:cursor-wait shadow-lg shadow-brand/30 flex items-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Spinner />
-                    Picking…
-                  </>
-                ) : (
-                  <>Pick again</>
-                )}
-              </motion.button>
-              <motion.button
-                onClick={reset}
-                disabled={loading}
-                whileHover={loading ? {} : { scale: 1.04 }}
-                whileTap={loading ? {} : { scale: 0.96 }}
-                className="px-5 py-2.5 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-sm transition disabled:opacity-50"
-              >
-                Start over
-              </motion.button>
-            </div>
-
-            <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
-              {seenIds.size} {seenIds.size === 1 ? 'movie' : 'movies'} excluded from future picks this session.
-            </p>
-          </motion.section>
+            picks={picks}
+            loading={loading}
+            round={round}
+            moods={moods}
+            occasion={occasion}
+            occasionLabel={OCCASIONS.find((o) => o.value === occasion)?.label}
+            seenCount={seenIds.size}
+            tasteProfile={tasteProfile}
+            onPickAgain={generate}
+            onReset={reset}
+            onDismiss={dismissPick}
+          />
         ) : loading ? (
-          <motion.section
-            key="loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="text-center py-20"
-          >
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-16">
             <PickLoader />
             <motion.p
               className="text-neutral-500 dark:text-white/60 mt-6"
@@ -402,125 +487,49 @@ function PickPage() {
             >
               Finding tonight's pick<ThinkingDots />
             </motion.p>
-          </motion.section>
+          </motion.div>
         ) : (
-          <motion.section
-            key="form"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="space-y-4"
-          >
-            <Step n="1" question="What's your mood?" active={step >= 1}>
-              <Choices
+          <motion.section key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+
+            <Step n="1" question="What's your mood? (pick up to 2)">
+              <MultiChips
                 options={MOODS}
-                value={mood}
-                onSelect={(v) => { setMood(v); setStep(2) }}
+                values={moods}
+                onToggle={toggleMood}
+                max={2}
               />
             </Step>
 
-            <Step n="2" question="Who are you watching with?" active={step >= 2}>
-              <Choices
-                options={COMPANY}
-                value={company}
-                onSelect={(v) => setCompany(v)}
-              />
+            <Step n="2" question="What's the occasion?">
+              <Chips options={OCCASIONS} value={occasion} onSelect={setOccasion} />
             </Step>
 
-            {/* ── Advanced (optional) section ─────────────────────── */}
-            {step >= 2 && (
+            <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
+              <FineTune
+                era={era} setEra={setEra}
+                length={length} setLength={setLength}
+                avoidIds={avoidIds} setAvoidIds={setAvoidIds}
+                pickedThemes={pickedThemes} setPickedThemes={setPickedThemes}
+                languages={languages} setLanguages={setLanguages}
+                pace={pace} setPace={setPace}
+                prompt={prompt} setPrompt={setPrompt}
+                similarTo={similarTo} setSimilarTo={setSimilarTo}
+                similarQuery={similarQuery} setSimilarQuery={setSimilarQuery}
+                similarResults={similarResults}
+                similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
+              />
+            </FineTuneToggle>
+
+            {/* [#1] Library taste transparency */}
+            {tasteProfile && (
               <motion.div
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
+                className="text-center text-xs text-neutral-500 dark:text-white/50"
               >
-                <button
-                  onClick={() => setAdvancedOpen((v) => !v)}
-                  className="
-                    w-full flex items-center justify-between gap-3 px-5 py-3 rounded-2xl
-                    bg-gradient-to-r from-white/[0.03] to-white/[0.01]
-                    dark:from-white/[0.04] dark:to-white/[0.02]
-                    border border-white/10 dark:border-white/10
-                    hover:border-brand/40
-                    transition
-                    text-left
-                  "
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-brand">
-                      {/* Clean SVG sliders icon — no emoji */}
-                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="4" y1="6"  x2="20" y2="6" />
-                        <line x1="4" y1="12" x2="20" y2="12" />
-                        <line x1="4" y1="18" x2="20" y2="18" />
-                        <circle cx="8"  cy="6"  r="2.2" fill="currentColor" />
-                        <circle cx="16" cy="12" r="2.2" fill="currentColor" />
-                        <circle cx="10" cy="18" r="2.2" fill="currentColor" />
-                      </svg>
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold">Fine-tune (optional)</div>
-                      <div className="text-[11px] text-neutral-500 dark:text-white/50 truncate">
-                        {advancedSummary || 'Era, length, genres to avoid'}
-                      </div>
-                    </div>
-                  </div>
-                  <motion.span
-                    animate={{ rotate: advancedOpen ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="text-xs text-neutral-500 dark:text-white/50"
-                  >
-                    ▾
-                  </motion.span>
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {advancedOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.25, ease: 'easeOut' }}
-                      className="overflow-hidden"
-                    >
-                      <div className="
-                        mt-3 p-5 rounded-2xl space-y-5
-                        bg-gradient-to-br from-white/[0.04] to-transparent
-                        border border-white/10
-                      ">
-                        <OptionalRow label="Era">
-                          <SmallChips options={ERAS} value={era} onSelect={setEra} />
-                        </OptionalRow>
-                        <OptionalRow label="Length">
-                          <SmallChips options={LENGTHS} value={length} onSelect={setLength} />
-                        </OptionalRow>
-                        <OptionalRow label="Avoid">
-                          <div className="flex flex-wrap gap-2">
-                            {AVOID_OPTIONS.map((opt) => {
-                              const active = avoidIds.has(opt.id)
-                              return (
-                                <motion.button
-                                  key={opt.id}
-                                  onClick={() => toggleAvoid(opt.id)}
-                                  whileHover={{ scale: 1.04 }}
-                                  whileTap={{ scale: 0.94 }}
-                                  className={`
-                                    px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                                    ${active
-                                      ? 'bg-red-500/20 text-red-300 border border-red-500/40 line-through'
-                                      : 'bg-white/[0.04] dark:bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'}
-                                  `}
-                                >
-                                  {opt.label}
-                                </motion.button>
-                              )
-                            })}
-                          </div>
-                        </OptionalRow>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                Tuning to your taste — {tasteProfile.totalFavs} favorites,{' '}
+                {tasteProfile.dominantEra ? `mostly ${tasteProfile.dominantEra}` : 'mixed eras'}
+                {tasteProfile.avgRating ? `, average rating ${tasteProfile.avgRating}` : ''}.
               </motion.div>
             )}
 
@@ -528,18 +537,18 @@ function PickPage() {
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center"
+                className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center"
               >
-                ⚠️ {error}
+                {error}
               </motion.div>
             )}
 
             <AnimatePresence>
-              {mood && company && (
+              {moods.length > 0 && occasion && (
                 <motion.div
-                  initial={{ opacity: 0, y: 16, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 12, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 16 }}
+                  exit={{ opacity: 0, y: 12 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 22 }}
                   className="text-center pt-2"
                 >
@@ -547,15 +556,9 @@ function PickPage() {
                     onClick={generate}
                     whileHover={{ scale: 1.05, boxShadow: '0 12px 50px -10px rgba(212,175,55,0.7)' }}
                     whileTap={{ scale: 0.97 }}
-                    className="
-                      px-10 py-3.5 rounded-full text-base font-semibold
-                      bg-gradient-to-br from-brand via-brand to-brand-light text-black
-                      shadow-xl shadow-brand/40
-                      transition-shadow
-                      relative overflow-hidden
-                    "
+                    className="px-10 py-3.5 rounded-full text-base font-semibold bg-gradient-to-br from-brand via-brand to-brand-light text-black shadow-xl shadow-brand/40 transition-shadow"
                   >
-                    <span className="relative z-10">Find me something</span>
+                    Find me something
                   </motion.button>
                 </motion.div>
               )}
@@ -567,66 +570,29 @@ function PickPage() {
   )
 }
 
-// ── Subcomponents ────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────
+//  ──── Subcomponents ─────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────
 
-// Step container: number badge in a card-style wrapper with subtle gold accent
-function Step({ n, question, active, children }) {
+function Step({ n, question, children }) {
   return (
-    <AnimatePresence>
-      {active && (
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="
-            relative p-5 rounded-2xl
-            bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent
-            border border-white/10
-            shadow-xl shadow-black/20
-          "
-        >
-          {/* Soft gold accent in the corner so it doesn't feel flat */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-brand/10 to-transparent rounded-tr-2xl rounded-bl-full pointer-events-none" />
-
-          <div className="flex items-center gap-3 mb-4 relative">
-            <motion.span
-              initial={{ scale: 0, rotate: -45 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 18, delay: 0.1 }}
-              className="
-                w-9 h-9 rounded-full text-sm font-bold flex items-center justify-center
-                bg-gradient-to-br from-brand to-brand-dark text-black
-                shadow-lg shadow-brand/40
-                ring-2 ring-brand/30
-              "
-            >
-              {n}
-            </motion.span>
-            <h2 className="text-lg sm:text-xl font-bold">{question}</h2>
-          </div>
-          <div className="relative">
-            {children}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
-}
-
-// Optional section row: label on the left, chips on the right
-function OptionalRow({ label, children }) {
-  return (
-    <div className="space-y-1.5">
-      <div className="text-[11px] font-bold tracking-wider uppercase text-neutral-500 dark:text-white/40">
-        {label}
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className="relative p-5 rounded-2xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-xl shadow-black/20"
+    >
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-brand/10 to-transparent rounded-tr-2xl rounded-bl-full pointer-events-none" />
+      <div className="flex items-center gap-3 mb-4 relative">
+        <span className="w-9 h-9 rounded-full text-sm font-bold flex items-center justify-center bg-gradient-to-br from-brand to-brand-dark text-black shadow-lg shadow-brand/40 ring-2 ring-brand/30">{n}</span>
+        <h2 className="text-base sm:text-lg font-bold">{question}</h2>
       </div>
-      {children}
-    </div>
+      <div className="relative">{children}</div>
+    </motion.div>
   )
 }
 
-// Smaller chip set used inside the advanced section
-function SmallChips({ options, value, onSelect }) {
+function Chips({ options, value, onSelect }) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((opt) => {
@@ -635,14 +601,13 @@ function SmallChips({ options, value, onSelect }) {
           <motion.button
             key={opt.value}
             onClick={() => onSelect(opt.value)}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.94 }}
-            className={`
-              px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-              ${active
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            className={`px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
+              active
                 ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
-                : 'bg-white/[0.04] dark:bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'}
-            `}
+                : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/80'
+            }`}
           >
             {opt.label}
           </motion.button>
@@ -652,36 +617,27 @@ function SmallChips({ options, value, onSelect }) {
   )
 }
 
-// Choice pills with rich hover/tap/active animations
-function Choices({ options, value, onSelect, renderLabel }) {
+function MultiChips({ options, values, onToggle, max = 2 }) {
   return (
-    <div className="flex flex-wrap gap-2 sm:gap-3 ml-11">
-      {options.map((opt, idx) => {
-        const active = value === opt.value
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => {
+        const active = values.includes(opt.value)
+        const atMax = values.length >= max && !active
         return (
           <motion.button
             key={opt.value}
-            onClick={() => onSelect(opt.value)}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{
-              opacity: 1, y: 0,
-              scale: active ? 1.04 : 1,
-            }}
-            transition={{
-              opacity: { duration: 0.2, delay: idx * 0.04 },
-              y:       { duration: 0.2, delay: idx * 0.04 },
-              scale:   { type: 'spring', stiffness: 400, damping: 22 },
-            }}
-            whileHover={{ scale: active ? 1.05 : 1.03, y: -1 }}
+            onClick={() => onToggle(opt.value)}
+            whileHover={{ scale: atMax ? 1 : 1.03 }}
             whileTap={{ scale: 0.95 }}
-            className={`
-              px-4 py-2.5 rounded-full text-sm font-medium transition-colors
-              ${active
-                ? 'bg-brand text-black border border-brand shadow-lg shadow-brand/40'
-                : 'bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-700 dark:text-white/80'}
-            `}
+            className={`px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
+              active
+                ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
+                : atMax
+                ? 'bg-white/[0.02] border border-white/5 text-neutral-500 dark:text-white/30 cursor-not-allowed'
+                : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/80'
+            }`}
           >
-            {renderLabel ? renderLabel(opt) : opt.label}
+            {opt.label}
           </motion.button>
         )
       })}
@@ -689,178 +645,389 @@ function Choices({ options, value, onSelect, renderLabel }) {
   )
 }
 
-// Polished skeleton "pick card" — mimics a real card's anatomy:
-//   - Top image area with gold shimmer + tint
-//   - Star rating + media-type badge in the corners
-//   - Title bar overlaid at the bottom of the image
-//   - Text lines below for the reasoning sentence
-// Each card animates in with a slight stagger (handled by parent grid).
+function FineTuneToggle({ open, summary, onToggle, children }) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-white/[0.03] to-white/[0.01] dark:from-white/[0.04] dark:to-white/[0.02] border border-white/10 hover:border-brand/40 transition text-left"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand">
+              <line x1="3" y1="6" x2="14" y2="6"/><circle cx="18" cy="6" r="2"/>
+              <line x1="3" y1="12" x2="8" y2="12"/><circle cx="12" cy="12" r="2"/><line x1="16" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="16" y2="18"/><circle cx="20" cy="18" r="2"/>
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">Fine-tune (optional)</div>
+            <div className="text-[11px] text-neutral-500 dark:text-white/50 truncate">
+              {summary || 'Reference movie, themes, languages, era, length, pace, prompts'}
+            </div>
+          </div>
+        </div>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} className="text-xs text-neutral-500 dark:text-white/50">▾</motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 p-5 rounded-2xl space-y-5 bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function FineTune(props) {
+  const {
+    era, setEra, length, setLength,
+    avoidIds, setAvoidIds, pickedThemes, setPickedThemes,
+    languages, setLanguages, pace, setPace,
+    prompt, setPrompt, similarTo, setSimilarTo,
+    similarQuery, setSimilarQuery, similarResults,
+    similarOpen, setSimilarOpen,
+  } = props
+
+  function toggleAvoid(id) { setAvoidIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  function toggleTheme(name) { setPickedThemes((s) => { const n = new Set(s); n.has(name) ? n.delete(name) : n.add(name); return n }) }
+  function toggleLang(code) { setLanguages((s) => { const n = new Set(s); n.has(code) ? n.delete(code) : n.add(code); return n }) }
+
+  const inputRef = useRef(null)
+
+  return (
+    <>
+      {/* [#3] Similar to */}
+      <Row label="Make it feel like…">
+        <div className="relative">
+          {similarTo ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand/15 border border-brand/40 text-sm text-brand">
+              {similarTo.title}
+              <button onClick={() => { setSimilarTo(null); setSimilarQuery('') }} className="text-brand/70 hover:text-brand">×</button>
+            </div>
+          ) : (
+            <input
+              ref={inputRef}
+              type="text"
+              value={similarQuery}
+              onChange={(e) => setSimilarQuery(e.target.value)}
+              onFocus={() => setSimilarOpen(true)}
+              onBlur={() => setTimeout(() => setSimilarOpen(false), 150)}
+              placeholder="Type a movie you love…"
+              className="w-full sm:max-w-sm px-3.5 py-2 rounded-full text-sm bg-white/[0.04] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand transition"
+            />
+          )}
+          {similarOpen && similarResults.length > 0 && !similarTo && (
+            <div className="absolute z-20 mt-1 w-full sm:max-w-sm rounded-xl bg-neutral-900 border border-white/10 shadow-xl overflow-hidden">
+              {similarResults.map((m) => (
+                <button
+                  key={m.id}
+                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title }); setSimilarQuery(''); setSimilarOpen(false) }}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left transition"
+                >
+                  {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded" />}
+                  <span className="text-sm flex-1 min-w-0 truncate">{m.title}</span>
+                  {m.year && <span className="text-xs text-white/50">{m.year}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Row>
+
+      {/* [#2] Free-text prompt */}
+      <Row label="Or describe the vibe in your own words">
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={2}
+          placeholder='e.g. "a chill movie about food" or "twisty thriller, not too violent"'
+          className="w-full px-3.5 py-2 rounded-xl text-sm bg-white/[0.04] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand transition resize-none"
+        />
+      </Row>
+
+      {/* [#4] Themes */}
+      <Row label="Themes">
+        <div className="flex flex-wrap gap-2">
+          {THEMES.map((t) => {
+            const active = pickedThemes.has(t)
+            return (
+              <motion.button key={t} onClick={() => toggleTheme(t)}
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
+                    : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+                }`}
+              >
+                #{t.replace(/ /g, '-')}
+              </motion.button>
+            )
+          })}
+        </div>
+      </Row>
+
+      {/* [#8] International */}
+      <Row label="International cinema">
+        <div className="flex flex-wrap gap-2">
+          {LANGUAGES.map((l) => {
+            const active = languages.has(l.code)
+            return (
+              <motion.button key={l.code} onClick={() => toggleLang(l.code)}
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-brand text-black border border-brand'
+                    : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+                }`}
+              >
+                {l.label}
+              </motion.button>
+            )
+          })}
+        </div>
+      </Row>
+
+      {/* [#9] Pace slider */}
+      <Row label="Pace">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-neutral-500 dark:text-white/50 w-16 text-right">slow burn</span>
+          <input
+            type="range" min="0" max="100" step="5" value={pace}
+            onChange={(e) => setPace(Number(e.target.value))}
+            className="flex-1 accent-brand"
+          />
+          <span className="text-xs text-neutral-500 dark:text-white/50 w-16">fast-paced</span>
+        </div>
+      </Row>
+
+      {/* Era / Length / Avoid */}
+      <Row label="Era">
+        <SmallChips options={ERAS} value={era} onSelect={setEra} />
+      </Row>
+      <Row label="Length">
+        <SmallChips options={LENGTHS} value={length} onSelect={setLength} />
+      </Row>
+      <Row label="Avoid">
+        <div className="flex flex-wrap gap-2">
+          {AVOID_OPTIONS.map((opt) => {
+            const active = avoidIds.has(opt.id)
+            return (
+              <motion.button key={opt.id} onClick={() => toggleAvoid(opt.id)}
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-red-500/20 text-red-300 border border-red-500/40 line-through'
+                    : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+                }`}
+              >
+                {opt.label}
+              </motion.button>
+            )
+          })}
+        </div>
+      </Row>
+    </>
+  )
+}
+
+function Row({ label, children }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] font-bold tracking-wider uppercase text-neutral-500 dark:text-white/40">{label}</div>
+      {children}
+    </div>
+  )
+}
+
+function SmallChips({ options, value, onSelect }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => {
+        const active = value === opt.value
+        return (
+          <motion.button key={opt.value} onClick={() => onSelect(opt.value)}
+            whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              active ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
+                     : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+            }`}>
+            {opt.label}
+          </motion.button>
+        )
+      })}
+    </div>
+  )
+}
+
+function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, seenCount, tasteProfile, onPickAgain, onReset, onDismiss }) {
+  return (
+    <motion.section
+      key="results"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      <p className="text-center mb-2 text-sm text-neutral-500 dark:text-white/60">
+        For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
+      </p>
+      {tasteProfile && (
+        <p className="text-center mb-6 text-[11px] text-neutral-400 dark:text-white/40">
+          Tuned to your taste profile · {tasteProfile.totalFavs} favorites
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px]">
+        <AnimatePresence mode="wait">
+          {loading ? (
+            [0, 1, 2].map((i) => <SkeletonPickCard key={`skel-${round}-${i}`} index={i} />)
+          ) : picks?.length > 0 ? (
+            picks.map((pick, idx) => (
+              <motion.div
+                key={`pick-${round}-${pick.id}`}
+                initial={{ opacity: 0, y: 80, rotateX: 25, scale: 0.85 }}
+                animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -40, scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 220, damping: 22, delay: idx * 0.18 }}
+                className="text-center relative group"
+                style={{ perspective: 800 }}
+              >
+                {/* [#7] Dismiss button */}
+                <button
+                  onClick={() => onDismiss(pick)}
+                  title="Show me less like this"
+                  className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-sm border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
+                >
+                  ×
+                </button>
+
+                <MediaCard {...pick} />
+
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 + idx * 0.18, duration: 0.35 }}
+                  className="mt-2 flex flex-wrap justify-center gap-1 px-0.5"
+                >
+                  {tagsFor(pick, moods, occasion).map((tag) => (
+                    <span key={tag} className="text-[9px] sm:text-[10px] font-medium text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                      #{tag}
+                    </span>
+                  ))}
+                </motion.div>
+                <motion.p
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 + idx * 0.18, duration: 0.4 }}
+                  className="mt-1.5 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
+                >
+                  {reasonFor(pick, moods, occasionLabel)}
+                </motion.p>
+              </motion.div>
+            ))
+          ) : null}
+        </AnimatePresence>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-1">
+        <motion.button onClick={onPickAgain} disabled={loading}
+          whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+          className="px-5 py-2.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition disabled:opacity-60 disabled:cursor-wait shadow-lg shadow-brand/30 flex items-center gap-2"
+        >
+          {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+        </motion.button>
+        <motion.button onClick={onReset} disabled={loading}
+          whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+          className="px-5 py-2.5 rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 text-sm transition disabled:opacity-50"
+        >
+          Start over
+        </motion.button>
+      </div>
+
+      <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
+        {seenCount} {seenCount === 1 ? 'movie' : 'movies'} excluded from future picks this session.
+      </p>
+    </motion.section>
+  )
+}
+
 function SkeletonPickCard({ index = 0 }) {
-  // Per-card variety so the three skeletons don't look mechanically identical
   const titleW = ['78%', '85%', '62%'][index % 3]
   const yearW  = ['38%', '45%', '32%'][index % 3]
-  const lines  = [
-    ['88%', '92%', '70%'],
-    ['82%', '90%', '60%'],
-    ['90%', '76%', '64%'],
-  ][index % 3]
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 24, scale: 0.92 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -16, scale: 0.95 }}
-      transition={{
-        type: 'spring',
-        stiffness: 220,
-        damping: 22,
-        delay: index * 0.12,
-      }}
+      transition={{ type: 'spring', stiffness: 220, damping: 22, delay: index * 0.12 }}
       className="text-center"
     >
-      {/* ─── Card body: poster placeholder with rating + type badge + title bar ─── */}
-      <div className="
-        relative aspect-[2/3] overflow-hidden rounded-xl
-        bg-gradient-to-br from-neutral-200 to-neutral-300
-        dark:from-neutral-800 dark:to-neutral-900
-        ring-1 ring-black/5 dark:ring-white/5
-      ">
-        {/* Soft gold tint over everything so it feels on-brand */}
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-transparent to-brand/5 pointer-events-none" />
-
-        {/* Diagonal gold-ish shimmer sweep — repeats every 1.6s with stagger */}
+      <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-gradient-to-br from-neutral-200 to-neutral-300 dark:from-neutral-800 dark:to-neutral-900 ring-1 ring-black/5 dark:ring-white/5">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand/10 via-transparent to-brand/5" />
         <motion.div
           className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/30 to-transparent"
           style={{ transform: 'skewX(-12deg)' }}
           animate={{ x: ['-120%', '120%'] }}
           transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: index * 0.25 }}
         />
-
-        {/* Sparkle in the middle, faint */}
-        <div className="absolute inset-0 flex items-center justify-center text-5xl opacity-15">✨</div>
-
-        {/* Top-left: pretend star rating badge */}
-        <div className="absolute top-2 left-2 h-4 w-12 rounded-md bg-black/40 dark:bg-black/60 backdrop-blur-sm" />
-
-        {/* Top-right: pretend media-type badge */}
+        <div className="absolute top-2 left-2 h-4 w-12 rounded-md bg-black/40" />
         <div className="absolute top-2 right-2 h-4 w-10 rounded-md bg-brand/50" />
-
-        {/* Bottom: pretend title strip (sits over the dark gradient like the real card) */}
-        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
         <div className="absolute inset-x-3 bottom-3 space-y-1.5">
-          <div className="h-2.5 rounded-full bg-white/70 dark:bg-white/40" style={{ width: titleW }} />
-          <div className="h-1.5 rounded-full bg-white/50 dark:bg-white/25" style={{ width: yearW }} />
+          <div className="h-2.5 rounded-full bg-white/70" style={{ width: titleW }} />
+          <div className="h-1.5 rounded-full bg-white/50" style={{ width: yearW }} />
         </div>
-      </div>
-
-      {/* ─── Hashtag placeholders ─── */}
-      <div className="mt-2 flex flex-wrap justify-center gap-1">
-        {['48px', '56px', '40px'].map((w, j) => (
-          <div
-            key={`tag-${j}`}
-            className="relative h-3.5 rounded-full bg-brand/10 border border-brand/20 overflow-hidden"
-            style={{ width: w }}
-          >
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/30 to-transparent"
-              animate={{ x: ['-100%', '300%'] }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: index * 0.2 + j * 0.1 }}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* ─── Reasoning placeholder: two shimmering lines ─── */}
-      <div className="mt-1.5 space-y-1.5 flex flex-col items-center">
-        {lines.slice(0, 2).map((w, j) => (
-          <div
-            key={j}
-            className="relative h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
-            style={{ width: w }}
-          >
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-brand/40 to-transparent"
-              animate={{ x: ['-100%', '300%'] }}
-              transition={{
-                duration: 1.6,
-                repeat: Infinity,
-                ease: 'easeInOut',
-                delay: index * 0.2 + j * 0.15,
-              }}
-            />
-          </div>
-        ))}
       </div>
     </motion.div>
   )
 }
 
-// Small spinner used inline (e.g. inside "Picking..." button)
 function Spinner({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
-      <motion.path
-        d="M22 12a10 10 0 0 0-10-10"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
-        style={{ transformOrigin: '12px 12px' }}
-      />
+      <motion.path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"
+        animate={{ rotate: 360 }} transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
+        style={{ transformOrigin: '12px 12px' }} />
     </svg>
   )
 }
 
-// Big clean loader for the first-pick wait — concentric brand rings + dots
 function PickLoader() {
   return (
     <div className="relative inline-flex items-center justify-center w-28 h-28">
-      {/* Outer ring */}
-      <motion.div
-        className="absolute inset-0 rounded-full border-2 border-brand/30"
+      <motion.div className="absolute inset-0 rounded-full border-2 border-brand/30"
         animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0.1, 0.4] }}
-        transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      {/* Middle spinning arc */}
-      <motion.div
-        className="absolute inset-3 rounded-full"
-        style={{
-          background: 'conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(212,175,55,0.85) 360deg)',
-          maskImage: 'radial-gradient(transparent 55%, black 56%)',
-          WebkitMaskImage: 'radial-gradient(transparent 55%, black 56%)',
-        }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-      />
-      {/* Three pulsing dots in the center */}
+        transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }} />
+      <motion.div className="absolute inset-3 rounded-full"
+        style={{ background: 'conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(212,175,55,0.85) 360deg)', maskImage: 'radial-gradient(transparent 55%, black 56%)', WebkitMaskImage: 'radial-gradient(transparent 55%, black 56%)' }}
+        animate={{ rotate: 360 }} transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }} />
       <div className="relative flex gap-1.5">
         {[0, 1, 2].map((i) => (
-          <motion.span
-            key={i}
-            className="w-2 h-2 rounded-full bg-brand"
+          <motion.span key={i} className="w-2 h-2 rounded-full bg-brand"
             animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
-            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15 }}
-          />
+            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.15 }} />
         ))}
       </div>
     </div>
   )
 }
 
-// Animated ". . ." after "Finding tonight's pick"
 function ThinkingDots() {
   return (
     <span className="inline-flex ml-0.5">
       {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          animate={{ opacity: [0.2, 1, 0.2] }}
-          transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-        >
-          .
-        </motion.span>
+        <motion.span key={i} animate={{ opacity: [0.2, 1, 0.2] }} transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}>.</motion.span>
       ))}
     </span>
   )

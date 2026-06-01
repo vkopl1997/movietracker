@@ -87,9 +87,31 @@ export async function getUpcomingMovies(region = 'US') {
 // TMDb /discover/movie with our filter set. Lets us recommend by
 // mood (genre), available time (runtime), and family-friendliness.
 // See https://developer.themoviedb.org/reference/discover-movie for params.
+// Look up a TMDb keyword id by its name. Returns null if not found.
+// Used by the Pick page to convert theme labels into discover-compatible ids.
+export async function findKeywordId(name) {
+  try {
+    const data = await tmdbFetch(`/search/keyword?query=${encodeURIComponent(name)}`)
+    return data.results?.[0]?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+// Get TMDb "similar" + "recommendations" for a single movie (for the
+// "Make it feel like ___" feature on the Pick page).
+export async function getMovieRecommendations(id, page = 1) {
+  const data = await tmdbFetch(`/movie/${id}/recommendations?page=${page}`)
+  return (data.results ?? [])
+    .filter((m) => m.poster_path)
+    .map((m) => normalize({ ...m, media_type: 'movie' }))
+}
+
 export async function discoverMovies({
   genres = [],              // array of TMDb genre ids to include
   withoutGenres = [],       // array of TMDb genre ids to EXCLUDE
+  keywords = [],            // array of TMDb keyword ids
+  withLanguages = [],       // array of ISO-639-1 language codes (e.g. 'ko', 'ja', 'fr')
   runtimeMin,
   runtimeMax,
   minRating = 6.5,          // skip mediocre stuff
@@ -103,6 +125,8 @@ export async function discoverMovies({
   const params = new URLSearchParams()
   if (genres.length)               params.set('with_genres', genres.join(','))
   if (withoutGenres.length)        params.set('without_genres', withoutGenres.join(','))
+  if (keywords.length)             params.set('with_keywords', keywords.join(','))
+  if (withLanguages.length)        params.set('with_original_language', withLanguages.join('|'))
   if (Number.isFinite(runtimeMin)) params.set('with_runtime.gte', String(runtimeMin))
   if (Number.isFinite(runtimeMax)) params.set('with_runtime.lte', String(runtimeMax))
   if (Number.isFinite(releaseBefore)) params.set('primary_release_date.lte', `${releaseBefore}-12-31`)

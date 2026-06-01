@@ -764,18 +764,12 @@ function PickPage() {
         ) : (
           <motion.section key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
 
-            <Step n="1" question="What's your mood? (pick up to 2)">
-              <MultiChips
-                options={MOODS}
-                values={moods}
-                onToggle={toggleMood}
-                max={2}
-              />
-            </Step>
-
-            <Step n="2" question="What's the occasion?">
-              <Chips options={OCCASIONS} value={occasion} onSelect={setOccasion} />
-            </Step>
+            <VibePanel
+              moods={moods}
+              occasion={occasion}
+              toggleMood={toggleMood}
+              setOccasion={setOccasion}
+            />
 
             <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
               <FineTune
@@ -855,21 +849,133 @@ function PickPage() {
 //  ──── Subcomponents ─────────────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────────────
 
-function Step({ n, question, children }) {
+// Unified Mood + Occasion panel. Replaces two separate numbered cards with
+// one continuous surface so the "set the vibe" decision feels like a single
+// thought instead of a stepped form. Live elements:
+//   • pulsing brand-gold "live" dot in the header
+//   • two ambient drifting glow blobs in the background (slow, ~14s loops)
+//   • a 2-dot progress strip on the right of the header
+//   • a real-time tagline in the divider that updates as you choose
+//     ("tonight: intense + first date") with smooth in/out transitions
+function VibePanel({ moods, occasion, toggleMood, setOccasion }) {
+  // Compact label for the live preview: first word of each mood label.
+  const moodWords = MOODS
+    .filter((m) => moods.includes(m.value))
+    .map((m) => m.label.split(/\s*\/\s*/)[0].toLowerCase())
+  const occLabel = OCCASIONS.find((o) => o.value === occasion)?.label?.toLowerCase() || null
+  const livePreview = moodWords.length > 0 && occLabel
+    ? `${moodWords.join(' + ')} · ${occLabel}`
+    : null
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="relative p-5 rounded-2xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-xl shadow-black/20"
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 overflow-hidden"
     >
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-brand/10 to-transparent rounded-tr-2xl rounded-bl-full pointer-events-none" />
-      <div className="flex items-center gap-3 mb-4 relative">
-        <span className="w-9 h-9 rounded-full text-sm font-bold flex items-center justify-center bg-gradient-to-br from-brand to-brand-dark text-black shadow-lg shadow-brand/40 ring-2 ring-brand/30">{n}</span>
-        <h2 className="text-base sm:text-lg font-bold">{question}</h2>
+      {/* Ambient drifting glow — subtle, never distracting */}
+      <motion.div
+        aria-hidden
+        className="absolute -top-28 -right-28 w-72 h-72 bg-brand/[0.12] rounded-full blur-3xl pointer-events-none"
+        animate={{ x: [0, 25, 0], y: [0, 12, 0] }}
+        transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        aria-hidden
+        className="absolute -bottom-28 -left-28 w-72 h-72 bg-brand/[0.06] rounded-full blur-3xl pointer-events-none"
+        animate={{ x: [0, -18, 0], y: [0, -12, 0] }}
+        transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Header — live dot + title + progress */}
+      <div className="relative flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex w-2.5 h-2.5">
+            <motion.span
+              aria-hidden
+              className="absolute inset-0 rounded-full bg-brand"
+              animate={{ scale: [1, 2.4, 1], opacity: [0.65, 0, 0.65] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+            />
+            <span className="relative w-2.5 h-2.5 rounded-full bg-brand shadow-[0_0_10px_rgba(212,175,55,0.7)]" />
+          </span>
+          <h2 className="text-[11px] font-bold tracking-[0.25em] uppercase text-brand">
+            Set the vibe
+          </h2>
+        </div>
+        <div className="flex items-center gap-1.5" aria-label="progress">
+          <ProgressDot active={moods.length > 0} />
+          <ProgressDot active={!!occasion} />
+        </div>
       </div>
-      <div className="relative">{children}</div>
+
+      {/* Mood sub-section */}
+      <div className="relative">
+        <div className="flex items-baseline justify-between mb-2.5">
+          <h3 className="text-sm sm:text-base font-bold">Mood</h3>
+          <span className="text-[10px] text-neutral-500 dark:text-white/40 tracking-[0.15em] uppercase">
+            pick up to 2
+          </span>
+        </div>
+        <MultiChips options={MOODS} values={moods} onToggle={toggleMood} max={2} />
+      </div>
+
+      {/* Live connection divider — the "feel" of the choice in one line */}
+      <div className="relative my-5 flex items-center gap-3">
+        <span className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+        <AnimatePresence mode="wait">
+          {livePreview ? (
+            <motion.span
+              key={livePreview}
+              initial={{ opacity: 0, y: 4, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.94 }}
+              transition={{ duration: 0.28, ease: 'easeOut' }}
+              className="text-[10px] font-bold tracking-[0.18em] uppercase text-brand whitespace-nowrap"
+            >
+              tonight: {livePreview}
+            </motion.span>
+          ) : (
+            <motion.span
+              key="waiting"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="text-[10px] tracking-[0.18em] uppercase text-neutral-400 dark:text-white/30 whitespace-nowrap"
+            >
+              {moods.length === 0 ? 'pick a mood…' : 'and an occasion'}
+            </motion.span>
+          )}
+        </AnimatePresence>
+        <span className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+      </div>
+
+      {/* Occasion sub-section */}
+      <div className="relative">
+        <div className="flex items-baseline justify-between mb-2.5">
+          <h3 className="text-sm sm:text-base font-bold">Occasion</h3>
+          <span className="text-[10px] text-neutral-500 dark:text-white/40 tracking-[0.15em] uppercase">
+            what's tonight?
+          </span>
+        </div>
+        <Chips options={OCCASIONS} value={occasion} onSelect={setOccasion} />
+      </div>
     </motion.div>
+  )
+}
+
+// Small filled circle that springs from grey -> brand when its step is done.
+function ProgressDot({ active }) {
+  return (
+    <motion.span
+      animate={active ? { scale: [1, 1.4, 1] } : { scale: 1 }}
+      transition={{ duration: 0.45, ease: 'easeOut' }}
+      className={`block w-1.5 h-1.5 rounded-full transition-colors ${
+        active ? 'bg-brand shadow-[0_0_8px_rgba(212,175,55,0.7)]' : 'bg-white/15'
+      }`}
+    />
   )
 }
 

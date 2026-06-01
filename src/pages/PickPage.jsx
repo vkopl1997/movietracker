@@ -12,6 +12,7 @@
 //   9. Pace slider             — slow burn ←→ fast-paced
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 // Always enforce at least this TMDb rating, even when the strict filter is
 // too restrictive and we have to widen other constraints.
@@ -1744,6 +1745,14 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
     .filter(Boolean)
   // Only show the "Top match" / taste line when we have real picks on screen.
   const showScoreLine = picks?.length > 0 && (tasteProfile || topScore != null)
+
+  // Temporary URL-driven Start-over variant switcher. Hit /pick?reset=<name>
+  // to preview each placement. Once a winner is picked we strip this out.
+  const [searchParams] = useSearchParams()
+  const variant = searchParams.get('reset') || 'current'
+  const showBackArrow = variant === 'back'
+  const showCornerIcon = variant === 'icon'
+
   return (
     <motion.section
       key="results"
@@ -1751,7 +1760,20 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
+      className="relative"
     >
+      {/* VARIANT-SWITCHER widget — only visible when ?reset is in the URL */}
+      {searchParams.get('reset') && <VariantSwitcher current={variant} />}
+
+      {/* VARIANT: back — top-left "← Start over" link */}
+      {showBackArrow && (
+        <button
+          onClick={onReset}
+          className="absolute -top-2 left-0 text-xs text-neutral-500 hover:text-brand transition flex items-center gap-1 z-10"
+        >
+          <span aria-hidden>←</span> Start over
+        </button>
+      )}
       <p className="text-center mb-2 text-xs sm:text-sm text-neutral-500 dark:text-white/60">
         For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
       </p>
@@ -1781,7 +1803,20 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
           middle instead of pinning to the top. Mobile keeps min-h-[280px]
           only — stacked cards there are taller than any single state so a
           fixed sm-height would just create dead space. */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px] sm:min-h-[400px] sm:items-center">
+      <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px] sm:min-h-[400px] sm:items-center">
+        {/* VARIANT: icon — tiny ↻ refresh in top-right of the grid */}
+        {showCornerIcon && (
+          <button
+            onClick={onReset}
+            title="Start over"
+            className="absolute -top-1 right-0 z-10 w-8 h-8 rounded-full bg-white/[0.05] border border-white/10 hover:border-brand/40 hover:bg-brand/10 text-neutral-400 hover:text-brand transition flex items-center justify-center"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+            </svg>
+          </button>
+        )}
         {/* No skeleton intermediate state — we keep the prior picks (or
             exhausted card) on screen during the fetch and let AnimatePresence
             crossfade directly to whatever comes back. The "Pick again" button
@@ -1844,20 +1879,77 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
               brand-coloured text on dark surface)
             • Hover: darker gold (full brand -> brand-dark gradient,
               black text for contrast). */}
-      <div className="flex justify-between max-w-xs mx-auto mb-1">
-        <motion.button onClick={onPickAgain} disabled={loading}
-          whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
-          className="w-[45%] py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
-        >
-          {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
-        </motion.button>
-        <motion.button onClick={onReset} disabled={loading}
-          whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
-          className="w-[45%] py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-50 flex items-center justify-center"
-        >
-          Start over
-        </motion.button>
-      </div>
+      {/* Buttons row — switches between layouts per variant */}
+      {variant === 'current' && (
+        <div className="flex justify-between max-w-xs mx-auto mb-1">
+          <motion.button onClick={onPickAgain} disabled={loading}
+            whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+            className="w-[45%] py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          >
+            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+          </motion.button>
+          <motion.button onClick={onReset} disabled={loading}
+            whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+            className="w-[45%] py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-50 flex items-center justify-center"
+          >
+            Start over
+          </motion.button>
+        </div>
+      )}
+
+      {/* VARIANT: link — full-width Pick again + tiny text link below */}
+      {variant === 'link' && (
+        <div className="flex flex-col items-center max-w-xs mx-auto mb-1 gap-2.5">
+          <motion.button onClick={onPickAgain} disabled={loading}
+            whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+            className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          >
+            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+          </motion.button>
+          <button onClick={onReset} disabled={loading} className="text-[11px] text-neutral-500 dark:text-white/40 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50">
+            or start over with a different mood
+          </button>
+        </div>
+      )}
+
+      {/* VARIANT: back — only the Pick again button here, back arrow is at top */}
+      {variant === 'back' && (
+        <div className="max-w-xs mx-auto mb-1">
+          <motion.button onClick={onPickAgain} disabled={loading}
+            whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+            className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          >
+            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+          </motion.button>
+        </div>
+      )}
+
+      {/* VARIANT: icon — only the Pick again button here, refresh icon is in grid corner */}
+      {variant === 'icon' && (
+        <div className="max-w-xs mx-auto mb-1">
+          <motion.button onClick={onPickAgain} disabled={loading}
+            whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+            className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          >
+            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+          </motion.button>
+        </div>
+      )}
+
+      {/* VARIANT: ghost — Pick again 70%, Start over 30% as a ghost text button */}
+      {variant === 'ghost' && (
+        <div className="flex max-w-xs mx-auto mb-1 gap-2 items-stretch">
+          <motion.button onClick={onPickAgain} disabled={loading}
+            whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
+            className="w-[70%] py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          >
+            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+          </motion.button>
+          <button onClick={onReset} disabled={loading} className="w-[30%] py-3 rounded-2xl text-xs text-neutral-500 dark:text-white/45 hover:text-brand transition disabled:opacity-50">
+            Start over
+          </button>
+        </div>
+      )}
 
       {picks?.length > 0 && seenCount > 0 && (
         <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
@@ -1896,6 +1988,43 @@ function SkeletonPickCard({ index = 0 }) {
         </div>
       </div>
     </motion.div>
+  )
+}
+
+// Floating switcher that lets the user flip between Start-over UX variants.
+// Only renders when ?reset is present in the URL — invisible by default in
+// production. Once the final variant is chosen, both this widget and the
+// variant branches above get stripped.
+function VariantSwitcher({ current }) {
+  const variants = [
+    { id: 'current', label: '1. Current (45/10/45 pair)' },
+    { id: 'link',    label: '2. Link below Pick again' },
+    { id: 'back',    label: '3. ← Back arrow (top-left)' },
+    { id: 'icon',    label: '4. ↻ Icon (grid corner)' },
+    { id: 'ghost',   label: '5. 70/30 ghost pair' },
+  ]
+  return (
+    <div className="fixed bottom-4 right-4 z-50 p-3 rounded-2xl bg-neutral-900/90 backdrop-blur border border-brand/30 shadow-xl shadow-black/50 text-xs space-y-1.5 max-w-[240px]">
+      <div className="text-[10px] tracking-[0.2em] uppercase text-brand font-bold">
+        Variant preview
+      </div>
+      {variants.map((v) => (
+        <a
+          key={v.id}
+          href={`?reset=${v.id}`}
+          className={`block px-2 py-1 rounded-md transition ${
+            current === v.id
+              ? 'bg-brand/20 text-brand'
+              : 'text-neutral-400 hover:bg-white/5 hover:text-white/80'
+          }`}
+        >
+          {v.label}
+        </a>
+      ))}
+      <a href="?" className="block mt-2 text-[10px] text-neutral-500 hover:text-brand">
+        ✕ close switcher
+      </a>
+    </div>
   )
 }
 

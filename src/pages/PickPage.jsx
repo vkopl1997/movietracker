@@ -1765,15 +1765,20 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
 
       {/* Container stays grid + min-height across all three states (loading
           skeletons, real picks, exhausted card) so transitioning between
-          them doesn't reflow the page. The exhausted card spans all 3 cols. */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px]">
+          them doesn't reflow the page. The exhausted card spans all 3 cols.
+          `layout` tweens the container's height when content shrinks/grows
+          between skeleton (~270px) and exhausted card (~440px) so the
+          transition stops feeling like a hard cut. */}
+      <motion.div
+        layout
+        transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px]"
+      >
         <AnimatePresence mode="wait">
           {loading ? (
             [0, 1, 2].map((i) => <SkeletonPickCard key={`skel-${round}-${i}`} index={i} />)
           ) : picks?.length === 0 ? (
-            <div key="exhausted" className="sm:col-span-3 flex items-center justify-center">
-              <ExhaustedState />
-            </div>
+            <ExhaustedState key="exhausted" className="sm:col-span-3" />
           ) : picks?.length > 0 ? (
             picks.map((pick, idx) => (
               <motion.div
@@ -1819,7 +1824,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
             ))
           ) : null}
         </AnimatePresence>
-      </div>
+      </motion.div>
 
       <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-1">
         <motion.button onClick={onPickAgain} disabled={loading}
@@ -1947,54 +1952,90 @@ function ScoreBar({ score }) {
 }
 
 // Rendered inside ResultsView when the candidate pool is exhausted.
-// The session memory has just been cleared, so "Pick again" gives a clean slate.
-function ExhaustedState() {
+// Smooth-entry choreography (so it doesn't feel like a crash-cut):
+//   • The outer card fades in (opacity only) — no spring, no scale-pop.
+//   • Internal elements (medallion, eyebrow, heading, copy) stagger in
+//     after each other so the card *reveals* itself top-to-bottom over
+//     ~600ms rather than slamming into view all at once.
+//   • The continuous medallion ring-pulse is delayed until after entry
+//     finishes so it doesn't fight the reveal animation.
+//   • Padding tightened so the height delta vs. the picks grid is smaller.
+//
+// `className` lets the consumer pass grid-positioning utilities
+// (e.g. `sm:col-span-3`) directly onto the motion root so we don't need
+// a static wrapper div — that wrapper was breaking AnimatePresence's
+// ability to animate the card's mount/unmount cleanly.
+function ExhaustedState({ className = '' }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.92 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-      className="relative mx-auto max-w-md text-center px-8 py-12 rounded-3xl overflow-hidden bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.22 } }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className={`relative mx-auto max-w-md text-center px-7 py-9 rounded-3xl overflow-hidden bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 ${className}`}
     >
       {/* Decorative glow blobs */}
       <div className="absolute -top-16 -right-16 w-48 h-48 bg-brand/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Brand-gold rings + check medallion */}
-      <div className="relative inline-flex items-center justify-center w-20 h-20 mb-5">
+      {/* Brand-gold rings + check medallion — staggers in first */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.6 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.45, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+        className="relative inline-flex items-center justify-center w-20 h-20 mb-5"
+      >
+        {/* Ring pulses — delayed so they don't fight the entry reveal */}
         <motion.div
+          aria-hidden
           className="absolute inset-0 rounded-full border border-brand/40"
           animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
         />
         <motion.div
+          aria-hidden
           className="absolute inset-2 rounded-full border border-brand/30"
           animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0, 0.4] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 1.3 }}
         />
         <div className="relative w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-brand to-brand-dark shadow-lg shadow-brand/40 ring-2 ring-brand/30">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-black">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Header divider */}
-      <div className="text-[10px] font-bold tracking-[0.3em] text-brand uppercase mb-2 flex items-center justify-center gap-3">
+      {/* Eyebrow divider */}
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.28, ease: 'easeOut' }}
+        className="text-[10px] font-bold tracking-[0.3em] text-brand uppercase mb-2 flex items-center justify-center gap-3"
+      >
         <span className="h-px w-6 bg-brand/40" />
         That's all
         <span className="h-px w-6 bg-brand/40" />
-      </div>
+      </motion.div>
 
-      <h3 className="font-display text-2xl tracking-[0.02em] mb-2">
+      <motion.h3
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.38, ease: 'easeOut' }}
+        className="font-display text-2xl tracking-[0.02em] mb-2"
+      >
         You've seen the best matches
-      </h3>
-      <p className="text-sm text-neutral-500 dark:text-white/60 leading-relaxed">
+      </motion.h3>
+
+      <motion.p
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.48, ease: 'easeOut' }}
+        className="text-sm text-neutral-500 dark:text-white/60 leading-relaxed"
+      >
         Every high-rated pick for this vibe has been shown. Memory cleared —
         hit <span className="text-brand font-semibold">Pick again</span> for a fresh round,
         or <span className="text-brand font-semibold">Start over</span> with a different mood.
-      </p>
+      </motion.p>
     </motion.div>
   )
 }

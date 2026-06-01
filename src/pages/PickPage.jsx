@@ -27,7 +27,9 @@ import {
   searchMulti,
   findKeywordId,
   getMovieRecommendations,
+  getMediaDetails,
 } from '../lib/tmdb'
+import { useAuth } from '../lib/AuthContext'
 import { usePageTitle } from '../lib/usePageTitle'
 import MediaCard from '../components/MediaCard'
 
@@ -185,9 +187,57 @@ function tagsFor(pick, moods, occasion) {
   return [...new Set(tags)].slice(0, 5)
 }
 
+// Score a single candidate against the user's situation + taste profile.
+// Higher score = more user-targeted. We sort by this and pick top 3 — no
+// random shuffle. This is the whole reason the recommender stops feeling random.
+function scoreCandidate(movie, ctx) {
+  let score = 0
+  const movieGenres = new Set(movie.genreIds || [])
+
+  // (1) Genre overlap with user's actual favorites — STRONGEST signal (0-40)
+  if (ctx.topGenres?.length) {
+    const matches = ctx.topGenres.filter((g) => movieGenres.has(g)).length
+    score += (matches / Math.min(3, ctx.topGenres.length)) * 40
+  }
+
+  // (2) Tonight's mood — genre overlap (0-25)
+  if (ctx.moodGenres?.length) {
+    const matches = ctx.moodGenres.filter((g) => movieGenres.has(g)).length
+    score += (matches / Math.min(3, ctx.moodGenres.length)) * 25
+  }
+
+  // (3) Era match (0-15)
+  const targetEra = ctx.era !== 'any' ? ctx.era : ctx.dominantEra
+  if (targetEra && movie.year) {
+    const inModern  = movie.year >= 2015
+    const inRecent  = movie.year >= 2000 && movie.year < 2015
+    const inClassic = movie.year < 2000
+    const hit = (targetEra === 'modern' && inModern) ||
+                (targetEra === 'recent' && inRecent) ||
+                (targetEra === 'classic' && inClassic)
+    score += hit ? 15 : (movie.year ? 5 : 0)   // small consolation for adjacent
+  }
+
+  // (4) Quality — rating above the floor (0-10)
+  if (movie.rating) {
+    score += Math.min(10, Math.max(0, (movie.rating - 7) * 5))
+  }
+
+  // (5) Bonus: came from a "similar to" / "recommended from your favorites" source
+  if (ctx.boostedIds?.has(movie.id)) score += 12
+
+  // (6) Penalty: down-weighted genres (cumulative)
+  for (const g of movieGenres) {
+    if (ctx.downGenres[g]) score -= 20 * ctx.downGenres[g]
+  }
+
+  return score
+}
+
 function PickPage() {
   usePageTitle('What should I watch?')
   const { items } = useFavorites()
+  const { user } = useAuth()
 
   // ── Required state ────────────────────────────────────────────────
   const [moods, setMoods]       = useState([])               // [#5] multi-select
@@ -214,7 +264,11 @@ function PickPage() {
   // ── Run state ─────────────────────────────────────────────────────
   const [loading, setLoading]       = useState(false)
   const [picks, setPicks]           = useState(null)
+  const [topScore, setTopScore]     = useState(null)          // best score in the picked set
   const [error, setError]           = useState(null)
+
+  // Top-5 genres from user's favorites — populated async, cached locally
+  const [topGenres, setTopGenres]   = useState([])
 
   const watchedIds = useMemo(
     () => new Set(items.filter((i) => i.isWatched && i.mediaType === 'movie').map((i) => i.id)),
@@ -249,6 +303,7 @@ function PickPage() {
       if (typeof s.round === 'number')   setRound(s.round)
       if (s.hasPicked)                setHasPicked(true)
       if (Array.isArray(s.picks))     setPicks(s.picks)
+      if (typeof s.topScore === 'number') setTopScore(s.topScore)
       if (s.advancedOpen)             setAdvancedOpen(true)
     } catch { /* corrupted — ignore */ }
   }, [])
@@ -265,11 +320,11 @@ function PickPage() {
         languages:    [...languages],
         prompt, similarTo,
         seenIds:      [...seenIds],
-        downGenres, sortIdx, round, hasPicked, picks, advancedOpen,
+        downGenres, sortIdx, round, hasPicked, picks, topScore, advancedOpen,
       }))
     } catch { /* quota / disabled — ignore */ }
   }, [moods, occasion, era, length, pace, avoidIds, pickedThemes, languages,
-      prompt, similarTo, seenIds, downGenres, sortIdx, round, hasPicked, picks, advancedOpen])
+      prompt, similarTo, seenIds, downGenres, sortIdx, round, hasPicked, picks, topScore, advancedOpen])
 
   // ── [#1] Library taste profile — analyze user's favorites ─────────
   // Counts year buckets + rating preference + media type ratio.
@@ -305,6 +360,51 @@ function PickPage() {
 
     return { dominantEra, avgRating, movies, tv, totalFavs: favs.length }
   }, [items])
+
+  // ── Fetch real genre signature from user's favorites ───────────────
+  // Favorites only carry id/title/year — no genres. We hit /movie/{id} (or /tv)
+  // for each favorite, count genre occurrences, and keep the top 5.
+  // Cached in localStorage keyed by (user, signature-of-favorites) so we only
+  // pay the N requests when the favorites set actually changes.
+  useEffect(() => {
+    const favs = items.filter((i) => i.isFavorite).slice(0, 12)
+    if (favs.length < 3) { setTopGenres([]); return }
+
+    const userKey = user?.id || 'guest'
+    const cacheKey = `mt_taste_genres_v1_${userKey}`
+    const sig = favs
+      .map((f) => `${f.mediaType}:${f.id}`)
+      .sort()
+      .join(',')
+
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null')
+      if (cached?.sig === sig && Array.isArray(cached.topGenres)) {
+        setTopGenres(cached.topGenres)
+        return
+      }
+    } catch { /* corrupted — refetch */ }
+
+    let cancelled = false
+    Promise.all(
+      favs.map((f) => getMediaDetails(f.mediaType, f.id).catch(() => null))
+    ).then((details) => {
+      if (cancelled) return
+      const count = {}
+      for (const d of details) {
+        if (!d?.genres) continue
+        for (const g of d.genres) count[g.id] = (count[g.id] || 0) + 1
+      }
+      const ranked = Object.entries(count)
+        .sort((a, b) => b[1] - a[1])
+        .map(([id]) => Number(id))
+        .slice(0, 5)
+      setTopGenres(ranked)
+      try { localStorage.setItem(cacheKey, JSON.stringify({ sig, topGenres: ranked })) } catch {}
+    })
+
+    return () => { cancelled = true }
+  }, [items, user?.id])
 
   function toggleSet(set, value) {
     const next = new Set(set)
@@ -408,11 +508,36 @@ function PickPage() {
 
     try {
       let pool = []
+      // boostedIds = candidates that came from a "similar to <thing you love>"
+      // source. The scorer adds +12 to these so they tend to surface.
+      const boostedIds = new Set()
 
-      // [#3] Similar-to reference: pull recommendations and filter by rating floor
+      // [#3] Similar-to reference: pull recommendations from the chosen movie
       if (similarTo?.id) {
         const recs = await getMovieRecommendations(similarTo.id)
-        pool.push(...recs.filter((r) => (r.rating ?? 0) >= HIGH_RATING_FLOOR))
+        for (const r of recs.filter((x) => (x.rating ?? 0) >= HIGH_RATING_FLOOR)) {
+          pool.push(r)
+          boostedIds.add(r.id)
+        }
+      }
+
+      // [#1] Boost from user's top 3 favorited MOVIES — TMDb knows what's
+      // similar to The Matrix; if the user favorited it, pull that pool too.
+      const topFavMovies = items
+        .filter((i) => i.isFavorite && i.mediaType === 'movie')
+        .slice(0, 3)
+      if (topFavMovies.length > 0) {
+        const recArrays = await Promise.all(
+          topFavMovies.map((f) => getMovieRecommendations(f.id).catch(() => []))
+        )
+        for (const recs of recArrays) {
+          for (const r of recs) {
+            if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
+              pool.push(r)
+              boostedIds.add(r.id)
+            }
+          }
+        }
       }
 
       // Discover query for variety
@@ -453,11 +578,53 @@ function PickPage() {
         return
       }
 
-      const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 3)
-      setPicks(shuffled)
+      // ── DETERMINISTIC SCORING (no random shuffle) ────────────────────
+      // Every candidate is scored against:
+      //   • top genres in user's favorites      (0-40)
+      //   • mood genres for tonight             (0-25)
+      //   • era preference                      (0-15)
+      //   • rating quality                      (0-10)
+      //   • boost: similar to favorites         (+12)
+      //   • penalty: down-weighted genres       (-20 per hit)
+      // Sort descending and take top 3. This is what makes picks feel
+      // targeted instead of random.
+      const ctx = {
+        topGenres,
+        moodGenres,
+        era,
+        dominantEra: tasteProfile?.dominantEra,
+        downGenres,
+        boostedIds,
+      }
+      const scored = pool
+        .map((m) => ({ movie: m, score: scoreCandidate(m, ctx) }))
+        .sort((a, b) => b.score - a.score)
+
+      // Diversify primary genre — avoid 3 picks that are all the same genre.
+      // We take the top-scoring movie unconditionally, then prefer movies
+      // whose primary genre we haven't already used.
+      const finalPicks = []
+      const usedPrimary = new Set()
+      for (const s of scored) {
+        if (finalPicks.length >= 3) break
+        const primary = s.movie.genreIds?.[0]
+        if (finalPicks.length > 0 && primary && usedPrimary.has(primary)) continue
+        finalPicks.push(s.movie)
+        if (primary) usedPrimary.add(primary)
+      }
+      // If diversification left us short (rare — small pool), fill from score order.
+      if (finalPicks.length < 3) {
+        for (const s of scored) {
+          if (finalPicks.length >= 3) break
+          if (!finalPicks.find((p) => p.id === s.movie.id)) finalPicks.push(s.movie)
+        }
+      }
+
+      setPicks(finalPicks)
+      setTopScore(Math.round(scored[0]?.score ?? 0))
       setSeenIds((prev) => {
         const next = new Set(prev)
-        for (const m of shuffled) next.add(m.id)
+        for (const m of finalPicks) next.add(m.id)
         return next
       })
       setSortIdx((i) => i + 1)
@@ -478,7 +645,7 @@ function PickPage() {
     setLanguages(new Set()); setPrompt(''); setSimilarTo(null)
     setSimilarQuery(''); setSimilarResults([])
     setSeenIds(new Set()); setDownGenres({}); setSortIdx(0); setRound(0)
-    setHasPicked(false); setPicks(null); setError(null)
+    setHasPicked(false); setPicks(null); setTopScore(null); setError(null)
     try { sessionStorage.removeItem(SESSION_KEY) } catch {}
   }
 
@@ -537,6 +704,8 @@ function PickPage() {
             occasionLabel={OCCASIONS.find((o) => o.value === occasion)?.label}
             seenCount={seenIds.size}
             tasteProfile={tasteProfile}
+            topScore={topScore}
+            topGenres={topGenres}
             onPickAgain={generate}
             onReset={reset}
             onDismiss={dismissPick}
@@ -593,7 +762,15 @@ function PickPage() {
               >
                 Tuning to your taste — {tasteProfile.totalFavs} favorites,{' '}
                 {tasteProfile.dominantEra ? `mostly ${tasteProfile.dominantEra}` : 'mixed eras'}
-                {tasteProfile.avgRating ? `, average rating ${tasteProfile.avgRating}` : ''}.
+                {tasteProfile.avgRating ? `, average rating ${tasteProfile.avgRating}` : ''}
+                {topGenres.length > 0 && (
+                  <> · favors{' '}
+                    <span className="text-brand">
+                      {topGenres.slice(0, 3).map((id) => GENRE_NAMES[id]).filter(Boolean).join(', ')}
+                    </span>
+                  </>
+                )}
+                .
               </motion.div>
             )}
 
@@ -933,7 +1110,11 @@ function SmallChips({ options, value, onSelect }) {
   )
 }
 
-function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, seenCount, tasteProfile, onPickAgain, onReset, onDismiss }) {
+function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, seenCount, tasteProfile, topScore, topGenres, onPickAgain, onReset, onDismiss }) {
+  const topGenreLabels = (topGenres || [])
+    .slice(0, 3)
+    .map((id) => GENRE_NAMES[id])
+    .filter(Boolean)
   return (
     <motion.section
       key="results"
@@ -945,9 +1126,18 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       <p className="text-center mb-2 text-sm text-neutral-500 dark:text-white/60">
         For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
       </p>
-      {tasteProfile && (
+      {(tasteProfile || topScore != null) && (
         <p className="text-center mb-6 text-[11px] text-neutral-400 dark:text-white/40">
-          Tuned to your taste profile · {tasteProfile.totalFavs} favorites
+          {topScore != null && (
+            <>
+              <span className="text-brand font-semibold">Top match: {topScore}/100</span>
+              {' · '}
+            </>
+          )}
+          {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
+          {topGenreLabels.length > 0 && (
+            <> · weights {topGenreLabels.join(', ')}</>
+          )}
         </p>
       )}
 

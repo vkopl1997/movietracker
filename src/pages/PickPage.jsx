@@ -871,17 +871,17 @@ function PickPage() {
   }, [moods, occasion, era, length, avoidIds, languages, prompt, pace])
 
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      <header className="text-center mb-6">
-        <div className="text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-2 flex items-center justify-center gap-3">
-          <span className="h-px w-8 bg-brand/40" />
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-5 sm:py-7 lg:py-8">
+      <header className="text-center mb-4 lg:mb-6">
+        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1.5 sm:mb-2 flex items-center justify-center gap-3">
+          <span className="h-px w-6 sm:w-8 bg-brand/40" />
           AI PICK
-          <span className="h-px w-8 bg-brand/40" />
+          <span className="h-px w-6 sm:w-8 bg-brand/40" />
         </div>
-        <h1 className="font-display text-4xl sm:text-5xl tracking-[0.02em] mb-1">
+        <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl tracking-[0.02em] mb-1">
           What should I watch?
         </h1>
-        <p className="text-sm text-neutral-500 dark:text-white/60">
+        <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
           Start with a movie you love — or skip and pick by theme.
         </p>
       </header>
@@ -916,7 +916,7 @@ function PickPage() {
             </motion.p>
           </motion.div>
         ) : (
-          <motion.section key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+          <motion.section key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3 lg:space-y-4">
 
             {/* ── PRIMARY 1 — Make it feel like (highest scoring weight) ── */}
             <ReferenceSection
@@ -1034,7 +1034,7 @@ function VibePanel({ moods, occasion, toggleMood, setOccasion }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 overflow-hidden"
+      className="relative p-4 sm:p-5 lg:p-6 rounded-3xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30 overflow-hidden"
     >
       {/* Ambient drifting glow — subtle, never distracting */}
       <motion.div
@@ -1148,7 +1148,7 @@ function ReferenceSection({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30 shadow-2xl shadow-black/30 overflow-hidden"
+      className="relative p-4 sm:p-5 lg:p-6 rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30 shadow-2xl shadow-black/30 overflow-hidden"
     >
       {/* Decorative gold glow that breathes */}
       <motion.div
@@ -1275,7 +1275,7 @@ function ThemesSection({ moods, occasion, pickedThemes, onToggle }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut', delay: 0.05 }}
-      className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-xl shadow-black/20 overflow-hidden"
+      className="relative p-4 sm:p-5 lg:p-6 rounded-3xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-xl shadow-black/20 overflow-hidden"
     >
       {/* subtle ambient glow, calmer than the reference panel */}
       <motion.div

@@ -192,8 +192,9 @@ function tagsFor(pick, moods, occasion) {
 // Score a single candidate against the user's situation + taste profile.
 // Higher score = more user-targeted. We sort by this and pick top 3 — no
 // random shuffle. This is the whole reason the recommender stops feeling random.
+// Score is floored at 0 so display never shows nonsense like "-8/100".
 function scoreCandidate(movie, ctx) {
-  let score = 0
+  let score = 10                                                // small base so a so-so movie still > 0
   const movieGenres = new Set(movie.genreIds || [])
 
   // (1) Genre overlap with user's actual favorites — STRONGEST signal (0-40)
@@ -202,13 +203,13 @@ function scoreCandidate(movie, ctx) {
     score += (matches / Math.min(3, ctx.topGenres.length)) * 40
   }
 
-  // (2) Tonight's mood — genre overlap (0-25)
+  // (2) Tonight's mood — genre overlap (0-25). Always rewards even partial fit.
   if (ctx.moodGenres?.length) {
     const matches = ctx.moodGenres.filter((g) => movieGenres.has(g)).length
     score += (matches / Math.min(3, ctx.moodGenres.length)) * 25
   }
 
-  // (3) Era match (0-15)
+  // (3) Era match (0-15) — user pick takes priority over inferred dominant era
   const targetEra = ctx.era !== 'any' ? ctx.era : ctx.dominantEra
   if (targetEra && movie.year) {
     const inModern  = movie.year >= 2015
@@ -220,20 +221,24 @@ function scoreCandidate(movie, ctx) {
     score += hit ? 15 : (movie.year ? 5 : 0)   // small consolation for adjacent
   }
 
-  // (4) Quality — rating above the floor (0-10)
+  // (4) Quality — rating above the 7 floor — bumped to 0-15 so well-rated
+  // movies clearly beat barely-rated ones even when other signals are weak.
   if (movie.rating) {
-    score += Math.min(10, Math.max(0, (movie.rating - 7) * 5))
+    score += Math.min(15, Math.max(0, (movie.rating - 7) * 7.5))
   }
 
-  // (5) Bonus: came from a "similar to" / "recommended from your favorites" source
-  if (ctx.boostedIds?.has(movie.id)) score += 12
+  // (5) Bonus: came from "similar to <movie you love>" or your favorites' recs
+  if (ctx.boostedIds?.has(movie.id)) score += 15
 
-  // (6) Penalty: down-weighted genres (cumulative)
+  // (6) Penalty: down-weighted genres — capped at -20 total so one bad genre
+  // doesn't tank a movie that's otherwise a strong match.
+  let penalty = 0
   for (const g of movieGenres) {
-    if (ctx.downGenres[g]) score -= 20 * ctx.downGenres[g]
+    if (ctx.downGenres[g]) penalty += 8 * ctx.downGenres[g]
   }
+  score -= Math.min(penalty, 20)
 
-  return score
+  return Math.max(0, score)
 }
 
 function PickPage() {
@@ -444,7 +449,7 @@ function PickPage() {
   // ── Generate ──────────────────────────────────────────────────────
   async function generate() {
     if (moods.length === 0 || !occasion) return
-    setLoading(true); setError(null); setPicks(null)
+    setLoading(true); setError(null); setPicks(null); setTopScore(null)
 
     const occasionOpt = OCCASIONS.find((o) => o.value === occasion) || {}
     const eraOpt    = ERAS.find((e) => e.value === era)       || {}
@@ -575,8 +580,13 @@ function PickPage() {
       }
 
       if (pool.length === 0) {
+        // Exhausted every fresh match. We render a designed empty card
+        // (ResultsView -> ExhaustedState) and clear the session memory so
+        // the next Pick again is fully fresh.
         setSeenIds(new Set())
-        setError("You've seen every match — clearing memory. Try Pick again to start fresh.")
+        setPicks([])
+        setHasPicked(true)
+        requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
         return
       }
 
@@ -1117,6 +1127,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
     .slice(0, 3)
     .map((id) => GENRE_NAMES[id])
     .filter(Boolean)
+  // Only show the "Top match" / taste line when we have real picks on screen.
+  const showScoreLine = picks?.length > 0 && (tasteProfile || topScore != null)
   return (
     <motion.section
       key="results"
@@ -1128,7 +1140,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       <p className="text-center mb-2 text-sm text-neutral-500 dark:text-white/60">
         For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
       </p>
-      {(tasteProfile || topScore != null) && (
+      {showScoreLine && (
         <p className="text-center mb-6 text-[11px] text-neutral-400 dark:text-white/40">
           {topScore != null && (
             <>
@@ -1143,10 +1155,12 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
         </p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px]">
+      <div className={`mb-4 max-w-2xl mx-auto ${picks?.length === 0 && !loading ? '' : 'grid grid-cols-1 sm:grid-cols-3 gap-4 min-h-[280px]'}`}>
         <AnimatePresence mode="wait">
           {loading ? (
             [0, 1, 2].map((i) => <SkeletonPickCard key={`skel-${round}-${i}`} index={i} />)
+          ) : picks?.length === 0 ? (
+            <ExhaustedState key="exhausted" />
           ) : picks?.length > 0 ? (
             picks.map((pick, idx) => (
               <motion.div
@@ -1210,9 +1224,11 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
         </motion.button>
       </div>
 
-      <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
-        {seenCount} {seenCount === 1 ? 'movie' : 'movies'} excluded from future picks this session.
-      </p>
+      {picks?.length > 0 && seenCount > 0 && (
+        <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
+          {seenCount} {seenCount === 1 ? 'movie' : 'movies'} excluded from future picks this session.
+        </p>
+      )}
     </motion.section>
   )
 }
@@ -1244,6 +1260,59 @@ function SkeletonPickCard({ index = 0 }) {
           <div className="h-1.5 rounded-full bg-white/50" style={{ width: yearW }} />
         </div>
       </div>
+    </motion.div>
+  )
+}
+
+// Rendered inside ResultsView when the candidate pool is exhausted.
+// The session memory has just been cleared, so "Pick again" gives a clean slate.
+function ExhaustedState() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ type: 'spring', stiffness: 200, damping: 22 }}
+      className="relative mx-auto max-w-md text-center px-8 py-12 rounded-3xl overflow-hidden bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent border border-white/10 shadow-2xl shadow-black/30"
+    >
+      {/* Decorative glow blobs */}
+      <div className="absolute -top-16 -right-16 w-48 h-48 bg-brand/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Brand-gold rings + check medallion */}
+      <div className="relative inline-flex items-center justify-center w-20 h-20 mb-5">
+        <motion.div
+          className="absolute inset-0 rounded-full border border-brand/40"
+          animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute inset-2 rounded-full border border-brand/30"
+          animate={{ scale: [1, 1.1, 1], opacity: [0.4, 0, 0.4] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+        />
+        <div className="relative w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-br from-brand to-brand-dark shadow-lg shadow-brand/40 ring-2 ring-brand/30">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-black">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Header divider */}
+      <div className="text-[10px] font-bold tracking-[0.3em] text-brand uppercase mb-2 flex items-center justify-center gap-3">
+        <span className="h-px w-6 bg-brand/40" />
+        That's all
+        <span className="h-px w-6 bg-brand/40" />
+      </div>
+
+      <h3 className="font-display text-2xl tracking-[0.02em] mb-2">
+        You've seen the best matches
+      </h3>
+      <p className="text-sm text-neutral-500 dark:text-white/60 leading-relaxed">
+        Every high-rated pick for this vibe has been shown. Memory cleared —
+        hit <span className="text-brand font-semibold">Pick again</span> for a fresh round,
+        or <span className="text-brand font-semibold">Start over</span> with a different mood.
+      </p>
     </motion.div>
   )
 }

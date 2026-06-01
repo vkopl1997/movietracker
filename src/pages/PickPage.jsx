@@ -1856,7 +1856,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
         >
           {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
         </motion.button>
-        <button onClick={onReset} disabled={loading} className="text-[11px] text-neutral-500 dark:text-white/40 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50">
+        <button onClick={onReset} disabled={loading} className="text-xs sm:text-[13px] text-neutral-500 dark:text-white/45 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50">
           or start over with a different mood
         </button>
       </div>

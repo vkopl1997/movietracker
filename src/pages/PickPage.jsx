@@ -192,15 +192,18 @@ function tagsFor(pick, moods, occasion) {
 // Score a single candidate against the user's situation + taste profile.
 // Higher score = more user-targeted. We sort by this and pick top 3 — no
 // random shuffle. This is the whole reason the recommender stops feeling random.
-// Score is floored at 0 so display never shows nonsense like "-8/100".
+// Returns 0-100 (floored AND capped, so the UI shows clean numbers).
 function scoreCandidate(movie, ctx) {
-  let score = 10                                                // small base so a so-so movie still > 0
+  let score = 5                                                 // small base — any survivor still > 0
   const movieGenres = new Set(movie.genreIds || [])
 
-  // (1) Genre overlap with user's actual favorites — STRONGEST signal (0-40)
+  // (1) Genre overlap with user's favorites. Weight is reduced in explicit
+  // mode so the user's "make it feel like X" choice isn't outvoted by their
+  // inferred long-term taste.
   if (ctx.topGenres?.length) {
     const matches = ctx.topGenres.filter((g) => movieGenres.has(g)).length
-    score += (matches / Math.min(3, ctx.topGenres.length)) * 40
+    const weight  = ctx.explicitMode ? 25 : 40
+    score += (matches / Math.min(3, ctx.topGenres.length)) * weight
   }
 
   // (2) Tonight's mood — genre overlap (0-25). Always rewards even partial fit.
@@ -218,27 +221,29 @@ function scoreCandidate(movie, ctx) {
     const hit = (targetEra === 'modern' && inModern) ||
                 (targetEra === 'recent' && inRecent) ||
                 (targetEra === 'classic' && inClassic)
-    score += hit ? 15 : (movie.year ? 5 : 0)   // small consolation for adjacent
+    score += hit ? 15 : (movie.year ? 4 : 0)   // small consolation for adjacent
   }
 
-  // (4) Quality — rating above the 7 floor — bumped to 0-15 so well-rated
-  // movies clearly beat barely-rated ones even when other signals are weak.
+  // (4) Quality — rating above the 7 floor (0-15).
   if (movie.rating) {
     score += Math.min(15, Math.max(0, (movie.rating - 7) * 7.5))
   }
 
-  // (5) Bonus: came from "similar to <movie you love>" or your favorites' recs
-  if (ctx.boostedIds?.has(movie.id)) score += 15
+  // (5) Bonus: came from "similar to <movie>" / themes / favorites' recs.
+  // Explicit signal gets a bigger bump so the user's intent dominates.
+  if (ctx.boostedIds?.has(movie.id)) {
+    score += ctx.explicitMode ? 25 : 12
+  }
 
-  // (6) Penalty: down-weighted genres — capped at -20 total so one bad genre
-  // doesn't tank a movie that's otherwise a strong match.
+  // (6) Penalty: down-weighted genres — capped at -20 total.
   let penalty = 0
   for (const g of movieGenres) {
     if (ctx.downGenres[g]) penalty += 8 * ctx.downGenres[g]
   }
   score -= Math.min(penalty, 20)
 
-  return Math.max(0, score)
+  // Clean 0-100 range so "Top match: 102/100" can never appear again.
+  return Math.max(0, Math.min(100, score))
 }
 
 function PickPage() {
@@ -515,46 +520,68 @@ function PickPage() {
 
     try {
       let pool = []
-      // boostedIds = candidates that came from a "similar to <thing you love>"
-      // source. The scorer adds +12 to these so they tend to surface.
+      // boostedIds = candidates that came from an explicit "similar to X" or
+      // the user's favorites' recommendation set. The scorer rewards these.
       const boostedIds = new Set()
 
-      // [#3] Similar-to reference: pull recommendations from the chosen movie
+      // Explicit mode = the user gave a direct signal ("feel like Heat",
+      // theme = heist). When true, we tighten the pool so first picks honor
+      // that signal instead of being diluted by broad discover results.
+      const explicitMode = !!similarTo?.id || pickedThemes.size > 0
+      // Strict mode = first round (no Pick again yet) AND explicit. Subsequent
+      // rounds can widen to keep variety — but the first three cards stay
+      // tightly aligned with what the user explicitly asked for.
+      const strictMode = explicitMode && round === 0
+
+      // [#3] Similar-to reference: pull 2 pages of recommendations so the
+      // pool is dominated by movies adjacent to the user's pick.
       if (similarTo?.id) {
-        const recs = await getMovieRecommendations(similarTo.id)
-        for (const r of recs.filter((x) => (x.rating ?? 0) >= HIGH_RATING_FLOOR)) {
-          pool.push(r)
-          boostedIds.add(r.id)
+        const [recs1, recs2] = await Promise.all([
+          getMovieRecommendations(similarTo.id, 1).catch(() => []),
+          getMovieRecommendations(similarTo.id, 2).catch(() => []),
+        ])
+        for (const r of [...recs1, ...recs2]) {
+          if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
+            pool.push(r)
+            boostedIds.add(r.id)
+          }
         }
       }
 
-      // [#1] Boost from user's top 3 favorited MOVIES — TMDb knows what's
-      // similar to The Matrix; if the user favorited it, pull that pool too.
-      const topFavMovies = items
-        .filter((i) => i.isFavorite && i.mediaType === 'movie')
-        .slice(0, 3)
-      if (topFavMovies.length > 0) {
-        const recArrays = await Promise.all(
-          topFavMovies.map((f) => getMovieRecommendations(f.id).catch(() => []))
-        )
-        for (const recs of recArrays) {
-          for (const r of recs) {
-            if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
-              pool.push(r)
-              boostedIds.add(r.id)
+      // [#1] Auto-boost from user's top 3 favorited MOVIES — but ONLY when
+      // they haven't been explicit. The user's library is great context for
+      // a generic "pick something", but it would water down "feel like Heat".
+      // After round 0 we re-enable it even in explicit mode for variety.
+      if (!strictMode) {
+        const topFavMovies = items
+          .filter((i) => i.isFavorite && i.mediaType === 'movie')
+          .slice(0, 3)
+        if (topFavMovies.length > 0) {
+          const recArrays = await Promise.all(
+            topFavMovies.map((f) => getMovieRecommendations(f.id).catch(() => []))
+          )
+          for (const recs of recArrays) {
+            for (const r of recs) {
+              if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
+                pool.push(r)
+                boostedIds.add(r.id)
+              }
             }
           }
         }
       }
 
-      // Discover query for variety
+      // Discover query for variety. In strict-explicit mode we still run it
+      // (it's already keyword/genre filtered) but only one page so similar-to
+      // recommendations stay dominant.
       const pageA = Math.floor(Math.random() * 3) + 1
       const pageB = pageA + 3
-      const [resA, resB] = await Promise.all([
-        discoverMovies({ ...baseFilter, page: pageA }),
-        discoverMovies({ ...baseFilter, page: pageB }),
-      ])
-      pool.push(...resA, ...resB)
+      const discoverPages = strictMode
+        ? [discoverMovies({ ...baseFilter, page: pageA })]
+        : [discoverMovies({ ...baseFilter, page: pageA }),
+           discoverMovies({ ...baseFilter, page: pageB })]
+      const discoverResults = await Promise.all(discoverPages)
+      for (const arr of discoverResults) pool.push(...arr)
 
       // Dedupe + skip seen/watched + ENFORCE rating floor client-side
       // (defense-in-depth — sometimes TMDb returns just-below-threshold items)
@@ -607,6 +634,7 @@ function PickPage() {
         dominantEra: tasteProfile?.dominantEra,
         downGenres,
         boostedIds,
+        explicitMode,
       }
       const scored = pool
         .map((m) => ({ movie: m, score: scoreCandidate(m, ctx) }))
@@ -1155,22 +1183,26 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
         </p>
       )}
 
-      <div className={`mb-4 max-w-2xl mx-auto ${picks?.length === 0 && !loading ? '' : 'grid grid-cols-1 sm:grid-cols-3 gap-4 min-h-[280px]'}`}>
+      {/* Container stays grid + min-height across all three states (loading
+          skeletons, real picks, exhausted card) so transitioning between
+          them doesn't reflow the page. The exhausted card spans all 3 cols. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px]">
         <AnimatePresence mode="wait">
           {loading ? (
             [0, 1, 2].map((i) => <SkeletonPickCard key={`skel-${round}-${i}`} index={i} />)
           ) : picks?.length === 0 ? (
-            <ExhaustedState key="exhausted" />
+            <div key="exhausted" className="sm:col-span-3 flex items-center justify-center">
+              <ExhaustedState />
+            </div>
           ) : picks?.length > 0 ? (
             picks.map((pick, idx) => (
               <motion.div
                 key={`pick-${round}-${pick.id}`}
-                initial={{ opacity: 0, y: 80, rotateX: 25, scale: 0.85 }}
-                animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -40, scale: 0.95 }}
-                transition={{ type: 'spring', stiffness: 220, damping: 22, delay: idx * 0.18 }}
-                className="text-center relative group"
-                style={{ perspective: 800 }}
+                initial={{ opacity: 0, y: 24, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -16, scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 28, delay: idx * 0.06 }}
+                className="text-center relative group will-change-transform"
               >
                 {/* [#7] Dismiss button */}
                 <button
@@ -1184,9 +1216,9 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
                 <MediaCard {...pick} />
 
                 <motion.div
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + idx * 0.18, duration: 0.35 }}
+                  transition={{ delay: 0.18 + idx * 0.06, duration: 0.22 }}
                   className="mt-2 flex flex-wrap justify-center gap-1 px-0.5"
                 >
                   {tagsFor(pick, moods, occasion).map((tag) => (
@@ -1196,9 +1228,9 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
                   ))}
                 </motion.div>
                 <motion.p
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 + idx * 0.18, duration: 0.4 }}
+                  transition={{ delay: 0.26 + idx * 0.06, duration: 0.24 }}
                   className="mt-1.5 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
                 >
                   {reasonFor(pick, moods, occasionLabel)}

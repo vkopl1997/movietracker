@@ -97,29 +97,130 @@ const AVOID_OPTIONS = [
 ]
 
 // ── Themes ────────────────────────────────────────────────────────────
-// Grouped into four categories so users scan by intent rather than scrolling
-// a flat blob. Each name is a TMDb keyword; ids are looked up on demand by
-// findKeywordId() and a miss falls back silently to "no keyword filter".
-const THEME_GROUPS = [
-  {
-    group: 'Plot device',
-    items: ['heist', 'time travel', 'revenge', 'twist ending', 'amnesia', 'conspiracy', 'kidnapping', 'survival'],
-  },
-  {
-    group: 'Setting',
-    items: ['space', 'dystopia', 'post apocalypse', 'road trip', 'high school', 'small town', 'new york', 'one night'],
-  },
-  {
-    group: 'Tone & flavor',
-    items: ['based on novel', 'based on true story', 'coming of age', 'found family', 'forbidden love', 'supernatural', 'friendship', 'feel good'],
-  },
-  {
-    group: 'Character',
-    items: ['assassin', 'spy', 'detective', 'serial killer', 'hacker', 'vampire', 'zombie', 'underdog'],
-  },
+// Each theme is a TMDb keyword name. The bank is intentionally large (~95)
+// so users have real range — but we never show all at once. ThemeChips
+// re-ranks against the current mood / occasion selections and surfaces only
+// the top ~18, with "+ more themes" revealing the full grouped catalogue.
+//
+// `moods`: which mood values this theme resonates with (e.g. heist → intense)
+// `occasions`: same for occasion slots; optional
+// `cat`: category for the expanded grouped view
+const THEME_BANK = [
+  // ── Plot devices & structure ────────────────────────────────────────
+  { name: 'heist',              cat: 'Plot',      moods: ['intense', 'dark', 'epic'] },
+  { name: 'bank robbery',       cat: 'Plot',      moods: ['intense', 'dark'] },
+  { name: 'time travel',        cat: 'Plot',      moods: ['deep', 'epic', 'surprise'] },
+  { name: 'time loop',          cat: 'Plot',      moods: ['deep', 'surprise', 'funny'] },
+  { name: 'revenge',            cat: 'Plot',      moods: ['intense', 'dark'] },
+  { name: 'twist ending',       cat: 'Plot',      moods: ['intense', 'surprise', 'deep'] },
+  { name: 'amnesia',            cat: 'Plot',      moods: ['deep', 'intense', 'surprise'] },
+  { name: 'conspiracy',         cat: 'Plot',      moods: ['intense', 'deep'] },
+  { name: 'kidnapping',         cat: 'Plot',      moods: ['intense', 'dark'] },
+  { name: 'survival',           cat: 'Plot',      moods: ['intense', 'epic'] },
+  { name: 'chase',              cat: 'Plot',      moods: ['intense'] },
+  { name: 'redemption',         cat: 'Plot',      moods: ['deep', 'cozy'] },
+  { name: 'mistaken identity',  cat: 'Plot',      moods: ['funny', 'intense'] },
+  { name: 'undercover',         cat: 'Plot',      moods: ['intense', 'dark'] },
+  { name: 'double agent',       cat: 'Plot',      moods: ['intense', 'deep'] },
+  { name: 'hostage',            cat: 'Plot',      moods: ['intense', 'dark'] },
+  { name: 'whistleblower',      cat: 'Plot',      moods: ['intense', 'deep'] },
+  { name: 'one night',          cat: 'Plot',      moods: ['intense', 'funny'],     occasions: ['friends', 'late'] },
+  { name: 'single location',    cat: 'Plot',      moods: ['intense', 'deep'] },
+
+  // ── World & setting ─────────────────────────────────────────────────
+  { name: 'space',              cat: 'Setting',   moods: ['epic', 'deep'] },
+  { name: 'dystopia',           cat: 'Setting',   moods: ['deep', 'intense', 'dark'] },
+  { name: 'post apocalypse',    cat: 'Setting',   moods: ['epic', 'dark', 'intense'] },
+  { name: 'cyberpunk',          cat: 'Setting',   moods: ['dark', 'epic', 'intense'] },
+  { name: 'fairy tale',         cat: 'Setting',   moods: ['cozy', 'epic'],          occasions: ['family'] },
+  { name: 'parallel universe',  cat: 'Setting',   moods: ['deep', 'epic', 'surprise'] },
+  { name: 'magic',              cat: 'Setting',   moods: ['epic', 'cozy', 'funny'], occasions: ['family'] },
+  { name: 'mythology',          cat: 'Setting',   moods: ['epic', 'deep'] },
+  { name: 'road trip',          cat: 'Setting',   moods: ['funny', 'cozy', 'epic'], occasions: ['friends'] },
+  { name: 'small town',         cat: 'Setting',   moods: ['cozy', 'deep'],          occasions: ['rainy', 'partner'] },
+  { name: 'high school',        cat: 'Setting',   moods: ['funny', 'cozy', 'deep'] },
+  { name: 'college',            cat: 'Setting',   moods: ['funny', 'cozy'] },
+  { name: 'boarding school',    cat: 'Setting',   moods: ['cozy', 'deep', 'dark'] },
+  { name: 'summer camp',        cat: 'Setting',   moods: ['cozy', 'funny'] },
+  { name: 'new york',           cat: 'Setting',   moods: ['cozy', 'funny', 'intense'] },
+  { name: 'tokyo',              cat: 'Setting',   moods: ['deep', 'epic'] },
+  { name: 'paris',              cat: 'Setting',   moods: ['cozy', 'deep'],          occasions: ['firstdate', 'partner'] },
+  { name: 'london',             cat: 'Setting',   moods: ['cozy', 'deep'] },
+  { name: 'prison',             cat: 'Setting',   moods: ['dark', 'intense'] },
+  { name: 'wilderness',         cat: 'Setting',   moods: ['epic', 'intense'] },
+
+  // ── Characters & archetypes ─────────────────────────────────────────
+  { name: 'assassin',           cat: 'Character', moods: ['intense', 'dark'] },
+  { name: 'spy',                cat: 'Character', moods: ['intense', 'epic'] },
+  { name: 'detective',          cat: 'Character', moods: ['intense', 'dark', 'deep'] },
+  { name: 'serial killer',      cat: 'Character', moods: ['intense', 'dark'] },
+  { name: 'hacker',             cat: 'Character', moods: ['intense', 'deep'] },
+  { name: 'vampire',            cat: 'Character', moods: ['dark', 'epic'] },
+  { name: 'zombie',             cat: 'Character', moods: ['dark', 'intense'] },
+  { name: 'werewolf',           cat: 'Character', moods: ['dark'] },
+  { name: 'ghost',              cat: 'Character', moods: ['dark', 'deep'] },
+  { name: 'wizard',             cat: 'Character', moods: ['epic'] },
+  { name: 'samurai',            cat: 'Character', moods: ['intense', 'epic'] },
+  { name: 'pirate',             cat: 'Character', moods: ['epic', 'funny'] },
+  { name: 'cowboy',             cat: 'Character', moods: ['epic', 'classic'] },
+  { name: 'underdog',           cat: 'Character', moods: ['cozy', 'epic'] },
+  { name: 'mafia',              cat: 'Character', moods: ['dark', 'intense'] },
+  { name: 'gangster',           cat: 'Character', moods: ['dark', 'intense'] },
+  { name: 'cop',                cat: 'Character', moods: ['intense'] },
+  { name: 'musician',           cat: 'Character', moods: ['deep', 'cozy'] },
+  { name: 'artist',             cat: 'Character', moods: ['deep'] },
+  { name: 'writer',             cat: 'Character', moods: ['cozy', 'deep'] },
+  { name: 'lawyer',             cat: 'Character', moods: ['intense', 'deep'] },
+  { name: 'artificial intelligence', cat: 'Character', moods: ['deep', 'intense'] },
+  { name: 'robot',              cat: 'Character', moods: ['deep', 'epic'] },
+  { name: 'alien',              cat: 'Character', moods: ['epic', 'intense'] },
+  { name: 'dragon',             cat: 'Character', moods: ['epic'] },
+
+  // ── Tone & relationship ─────────────────────────────────────────────
+  { name: 'feel good',          cat: 'Tone',      moods: ['funny', 'cozy'],         occasions: ['hangover', 'friends', 'family', 'rainy'] },
+  { name: 'dark comedy',        cat: 'Tone',      moods: ['funny', 'dark'] },
+  { name: 'satire',             cat: 'Tone',      moods: ['funny', 'deep'] },
+  { name: 'mockumentary',       cat: 'Tone',      moods: ['funny'] },
+  { name: 'noir',               cat: 'Tone',      moods: ['dark', 'classic'] },
+  { name: 'psychological',      cat: 'Tone',      moods: ['deep', 'dark', 'intense'], occasions: ['late', 'alone'] },
+  { name: 'mind bending',       cat: 'Tone',      moods: ['deep', 'surprise'],      occasions: ['late'] },
+  { name: 'supernatural',       cat: 'Tone',      moods: ['dark', 'epic'] },
+  { name: 'romance',            cat: 'Tone',      moods: ['cozy', 'deep'],          occasions: ['firstdate', 'partner', 'rainy'] },
+  { name: 'forbidden love',     cat: 'Tone',      moods: ['intense', 'deep'],       occasions: ['partner'] },
+  { name: 'love triangle',      cat: 'Tone',      moods: ['cozy', 'intense'] },
+  { name: 'slow burn',          cat: 'Tone',      moods: ['cozy', 'deep'],          occasions: ['rainy', 'partner'] },
+  { name: 'friendship',         cat: 'Tone',      moods: ['cozy', 'funny', 'deep'], occasions: ['friends'] },
+  { name: 'family',             cat: 'Tone',      moods: ['cozy', 'deep'],          occasions: ['family'] },
+  { name: 'found family',       cat: 'Tone',      moods: ['cozy', 'epic'] },
+  { name: 'first love',         cat: 'Tone',      moods: ['cozy', 'deep'],          occasions: ['firstdate'] },
+  { name: 'coming of age',      cat: 'Tone',      moods: ['cozy', 'deep', 'funny'] },
+
+  // ── Adapted from ────────────────────────────────────────────────────
+  { name: 'based on novel',     cat: 'Adapted',   moods: ['deep', 'cozy'] },
+  { name: 'based on true story', cat: 'Adapted',  moods: ['deep', 'intense'] },
+  { name: 'biographical',       cat: 'Adapted',   moods: ['deep'] },
+  { name: 'based on comic',     cat: 'Adapted',   moods: ['epic', 'funny'] },
+  { name: 'based on play',      cat: 'Adapted',   moods: ['deep'] },
+
+  // ── Subject & activity ──────────────────────────────────────────────
+  { name: 'food',               cat: 'Subject',   moods: ['cozy', 'funny'],         occasions: ['rainy', 'partner'] },
+  { name: 'music',              cat: 'Subject',   moods: ['cozy', 'funny', 'epic'] },
+  { name: 'dance',              cat: 'Subject',   moods: ['funny', 'cozy'] },
+  { name: 'martial arts',       cat: 'Subject',   moods: ['intense', 'epic'] },
+  { name: 'boxing',             cat: 'Subject',   moods: ['intense', 'epic'] },
+  { name: 'sports',             cat: 'Subject',   moods: ['epic', 'funny'],         occasions: ['friends'] },
+  { name: 'religion',           cat: 'Subject',   moods: ['deep'] },
+  { name: 'philosophy',         cat: 'Subject',   moods: ['deep'] },
+  { name: 'addiction',          cat: 'Subject',   moods: ['dark', 'deep'] },
+  { name: 'mental illness',     cat: 'Subject',   moods: ['deep', 'dark'] },
+  { name: 'grief',              cat: 'Subject',   moods: ['deep'] },
+  { name: 'world war ii',       cat: 'Subject',   moods: ['deep', 'intense', 'classic'] },
+  { name: 'cold war',           cat: 'Subject',   moods: ['intense', 'deep'] },
 ]
 // Flat list used by parsePrompt() — order doesn't matter for substring scan.
-const THEMES = THEME_GROUPS.flatMap((g) => g.items)
+const THEMES = THEME_BANK.map((t) => t.name)
+// Category order for the expanded grouped view.
+const THEME_CATEGORIES = ['Plot', 'Setting', 'Character', 'Tone', 'Adapted', 'Subject']
 
 const LANGUAGES = [
   { code: 'ko', label: 'Korean' },
@@ -791,6 +892,7 @@ function PickPage() {
 
             <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
               <FineTune
+                moods={moods} occasion={occasion}
                 era={era} setEra={setEra}
                 length={length} setLength={setLength}
                 avoidIds={avoidIds} setAvoidIds={setAvoidIds}
@@ -1095,6 +1197,7 @@ function FineTuneToggle({ open, summary, onToggle, children }) {
 
 function FineTune(props) {
   const {
+    moods, occasion,
     era, setEra, length, setLength,
     avoidIds, setAvoidIds, pickedThemes, setPickedThemes,
     languages, setLanguages, pace, setPace,
@@ -1160,35 +1263,15 @@ function FineTune(props) {
         />
       </Row>
 
-      {/* [#4] Themes — grouped by intent so users can scan in seconds */}
-      <Row label={`Themes${pickedThemes.size > 0 ? `  ·  ${pickedThemes.size} picked` : ''}`}>
-        <div className="space-y-2.5">
-          {THEME_GROUPS.map((g) => (
-            <div key={g.group}>
-              <div className="text-[9px] font-bold tracking-[0.22em] uppercase text-neutral-400 dark:text-white/30 mb-1.5">
-                {g.group}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {g.items.map((t) => {
-                  const active = pickedThemes.has(t)
-                  return (
-                    <motion.button key={t} onClick={() => toggleTheme(t)}
-                      whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.94 }}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                        active
-                          ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
-                          : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
-                      }`}
-                    >
-                      #{t.replace(/ /g, '-')}
-                    </motion.button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Row>
+      {/* [#4] Themes — bank of ~95, but we only surface the top ~18 ranked
+          by overlap with the user's mood + occasion. Live re-ranks as those
+          selections change; "show more" reveals the full grouped catalogue. */}
+      <ThemeChips
+        moods={moods}
+        occasion={occasion}
+        pickedThemes={pickedThemes}
+        onToggle={toggleTheme}
+      />
 
       {/* [#8] International */}
       <Row label="International cinema">
@@ -1251,6 +1334,164 @@ function FineTune(props) {
         </div>
       </Row>
     </>
+  )
+}
+
+// ── Contextual theme chips ─────────────────────────────────────────────
+// Renders the top-N most relevant themes for the user's current mood +
+// occasion. As those selections change, chips animate (motion.layout) to
+// their new positions and irrelevant ones swap out via AnimatePresence —
+// this re-ranking IS the "live" feeling.
+//
+// Picked themes always sort to the front (pin score) so they never visually
+// disappear when the user changes their mood after picking.
+const SUGGESTED_COUNT = 18
+
+function rankThemes(bank, moods, occasion, pickedThemes) {
+  return bank
+    .map((t, i) => {
+      let score = 0
+      if (pickedThemes.has(t.name)) score += 10_000          // pinned to front
+      score += t.moods.filter((m) => moods.includes(m)).length * 10
+      if (t.occasions?.includes(occasion)) score += 5
+      // Tiebreaker: original array order. Subtract a tiny amount so sort is stable
+      // in the direction "earlier in bank wins ties".
+      return { ...t, score: score - i * 0.001 }
+    })
+    .sort((a, b) => b.score - a.score)
+}
+
+function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
+  const [showAll, setShowAll] = useState(false)
+
+  const ranked = useMemo(
+    () => rankThemes(THEME_BANK, moods, occasion, pickedThemes),
+    [moods, occasion, pickedThemes]
+  )
+  const suggested = ranked.slice(0, SUGGESTED_COUNT)
+  const remaining = ranked.slice(SUGGESTED_COUNT)
+  // Group the remaining themes by category for the expanded view.
+  const remainingByCat = useMemo(() => {
+    const out = {}
+    for (const t of remaining) {
+      if (!out[t.cat]) out[t.cat] = []
+      out[t.cat].push(t)
+    }
+    return out
+  }, [remaining])
+
+  const hasMoodOrOccasion = moods.length > 0 || !!occasion
+  const headerLabel = hasMoodOrOccasion
+    ? 'Matched to your vibe'
+    : 'Popular themes'
+
+  return (
+    <div className="space-y-1.5">
+      {/* Row label with live status */}
+      <div className="flex items-baseline justify-between">
+        <div className="text-[11px] font-bold tracking-wider uppercase text-neutral-500 dark:text-white/40">
+          Themes
+        </div>
+        <div className="flex items-center gap-2 text-[10px] tracking-[0.15em] uppercase">
+          {hasMoodOrOccasion && (
+            <span className="inline-flex items-center gap-1 text-brand">
+              <motion.span
+                className="w-1.5 h-1.5 rounded-full bg-brand"
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 1.6, repeat: Infinity }}
+              />
+              {headerLabel}
+            </span>
+          )}
+          {!hasMoodOrOccasion && (
+            <span className="text-neutral-400 dark:text-white/30">{headerLabel}</span>
+          )}
+          {pickedThemes.size > 0 && (
+            <span className="text-brand">· {pickedThemes.size} picked</span>
+          )}
+        </div>
+      </div>
+
+      {/* Suggested chips — animated reorder */}
+      <div className="flex flex-wrap gap-1.5">
+        <AnimatePresence initial={false}>
+          {suggested.map((t) => (
+            <motion.button
+              key={t.name}
+              layout
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              onClick={() => onToggle(t.name)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.94 }}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                pickedThemes.has(t.name)
+                  ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
+                  : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+              }`}
+            >
+              #{t.name.replace(/ /g, '-')}
+            </motion.button>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* "Show more" toggle reveals the rest grouped by category */}
+      {remaining.length > 0 && (
+        <button
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-1 text-[11px] text-brand/80 hover:text-brand transition inline-flex items-center gap-1"
+        >
+          {showAll ? '− Show fewer' : `+ ${remaining.length} more themes`}
+          <motion.span animate={{ rotate: showAll ? 180 : 0 }} className="text-[10px]">▾</motion.span>
+        </button>
+      )}
+
+      <AnimatePresence initial={false}>
+        {showAll && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-3 space-y-2.5">
+              {THEME_CATEGORIES.map((cat) => {
+                const items = remainingByCat[cat]
+                if (!items?.length) return null
+                return (
+                  <div key={cat}>
+                    <div className="text-[9px] font-bold tracking-[0.22em] uppercase text-neutral-400 dark:text-white/30 mb-1.5">
+                      {cat}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((t) => (
+                        <motion.button
+                          key={t.name}
+                          onClick={() => onToggle(t.name)}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.94 }}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                            pickedThemes.has(t.name)
+                              ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
+                              : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+                          }`}
+                        >
+                          #{t.name.replace(/ /g, '-')}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 

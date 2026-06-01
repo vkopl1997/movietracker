@@ -1271,22 +1271,21 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
-      <p className="text-center mb-2 text-sm text-neutral-500 dark:text-white/60">
+      <p className="text-center mb-3 text-sm text-neutral-500 dark:text-white/60">
         For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
       </p>
       {showScoreLine && (
-        <p className="text-center mb-6 text-[11px] text-neutral-400 dark:text-white/40">
-          {topScore != null && (
-            <>
-              <span className="text-brand font-semibold">Top match: {topScore}/100</span>
-              {' · '}
-            </>
+        <div className="mb-6">
+          {topScore != null && <ScoreBar score={topScore} />}
+          {(tasteProfile || topGenreLabels.length > 0) && (
+            <p className="text-center mt-2 text-[11px] text-neutral-400 dark:text-white/40">
+              {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
+              {topGenreLabels.length > 0 && (
+                <> · weights {topGenreLabels.join(', ')}</>
+              )}
+            </p>
           )}
-          {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
-          {topGenreLabels.length > 0 && (
-            <> · weights {topGenreLabels.join(', ')}</>
-          )}
-        </p>
+        </div>
       )}
 
       {/* Container stays grid + min-height across all three states (loading
@@ -1399,6 +1398,76 @@ function SkeletonPickCard({ index = 0 }) {
         </div>
       </div>
     </motion.div>
+  )
+}
+
+// Live colour-graded score bar shown above the picks. The fill width AND
+// colour BOTH tween smoothly when topScore changes from one round to the
+// next, so re-picking feels reactive rather than a flat number swap.
+// Score → hue: 0=red, 60=yellow, 120=green (HSL is naturally a gradient).
+function scoreToColor(score) {
+  const clamped = Math.max(0, Math.min(100, score))
+  const hue = (clamped / 100) * 120
+  return `hsl(${hue}, 80%, 55%)`
+}
+
+function ScoreBar({ score }) {
+  const color = scoreToColor(score)
+  const label = score >= 80 ? 'Stellar'
+              : score >= 60 ? 'Strong'
+              : score >= 40 ? 'Solid'
+              : 'Warm-up'
+  return (
+    <div className="flex items-center justify-center gap-3">
+      {/* Label — color-matched, with a soft glow */}
+      <motion.span
+        className="text-[10px] font-bold tracking-[0.2em] uppercase whitespace-nowrap hidden sm:inline"
+        animate={{ color, textShadow: `0 0 10px ${color}80` }}
+        transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+      >
+        Top match
+      </motion.span>
+
+      {/* Bar */}
+      <div className="relative h-2 w-40 sm:w-56 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/5">
+        {/* faint full-range gradient hint so an empty bar still reads as red→green */}
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-full opacity-30"
+          style={{ background: 'linear-gradient(90deg, hsl(0,80%,55%), hsl(60,80%,55%), hsl(120,80%,55%))' }}
+        />
+        {/* coloured fill — animates both width AND colour when score changes */}
+        <motion.div
+          className="absolute inset-y-0 left-0 rounded-full"
+          initial={{ width: 0, backgroundColor: 'hsl(0,80%,55%)' }}
+          animate={{
+            width: `${score}%`,
+            backgroundColor: color,
+            boxShadow: `0 0 12px ${color}`,
+          }}
+          transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+        />
+        {/* traveling shimmer on top of the fill, starts after fill lands */}
+        <motion.div
+          aria-hidden
+          className="absolute inset-y-0 left-0 w-1/3 pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent)' }}
+          initial={{ x: '-100%' }}
+          animate={{ x: ['-50%', '250%'] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: 1.0 }}
+        />
+      </div>
+
+      {/* Number — same colour as the bar */}
+      <motion.span
+        className="text-xs font-bold tabular-nums whitespace-nowrap"
+        animate={{ color }}
+        transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {score}<span className="text-neutral-400 dark:text-white/40 font-normal">/100</span>
+        <span className="hidden sm:inline ml-1.5 text-[10px] tracking-wider uppercase opacity-80">· {label}</span>
+      </motion.span>
+    </div>
   )
 }
 

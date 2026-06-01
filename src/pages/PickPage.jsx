@@ -312,26 +312,35 @@ function tagsFor(pick, moods, occasion) {
 // Higher score = more user-targeted. We sort by this and pick top 3 — no
 // random shuffle. This is the whole reason the recommender stops feeling random.
 // Returns 0-100 (floored AND capped, so the UI shows clean numbers).
+//
+// Weight balance reflects the new architecture:
+//   • Make-it-feel-like (similarTo boost): DOMINANT signal — up to +35
+//   • Library taste (top genres):         strong inferred signal — up to +35
+//   • Quality (rating):                    +17
+//   • Mood (vibe — now a filter):          DEMOTED — up to +15
+//   • Era match:                           +12
+//   • Base survival bonus:                 +5
+//   • Penalty cap (down-weighted genres):  -20
 function scoreCandidate(movie, ctx) {
   let score = 5                                                 // small base — any survivor still > 0
   const movieGenres = new Set(movie.genreIds || [])
 
-  // (1) Genre overlap with user's favorites. Weight is reduced in explicit
-  // mode so the user's "make it feel like X" choice isn't outvoted by their
-  // inferred long-term taste.
+  // (1) Genre overlap with user's favorites. Slightly reduced in explicit
+  // mode so the user's "feel like X" choice isn't outvoted by inferred taste.
   if (ctx.topGenres?.length) {
     const matches = ctx.topGenres.filter((g) => movieGenres.has(g)).length
-    const weight  = ctx.explicitMode ? 25 : 40
+    const weight  = ctx.explicitMode ? 25 : 35
     score += (matches / Math.min(3, ctx.topGenres.length)) * weight
   }
 
-  // (2) Tonight's mood — genre overlap (0-25). Always rewards even partial fit.
+  // (2) Mood — DEMOTED from 25 to 15 to reflect "vibe is now a filter, not
+  // the primary signal". Still rewards partial fit, just less aggressively.
   if (ctx.moodGenres?.length) {
     const matches = ctx.moodGenres.filter((g) => movieGenres.has(g)).length
-    score += (matches / Math.min(3, ctx.moodGenres.length)) * 25
+    score += (matches / Math.min(3, ctx.moodGenres.length)) * 15
   }
 
-  // (3) Era match (0-15) — user pick takes priority over inferred dominant era
+  // (3) Era match (0-12) — user pick takes priority over inferred dominant era
   const targetEra = ctx.era !== 'any' ? ctx.era : ctx.dominantEra
   if (targetEra && movie.year) {
     const inModern  = movie.year >= 2015
@@ -340,18 +349,20 @@ function scoreCandidate(movie, ctx) {
     const hit = (targetEra === 'modern' && inModern) ||
                 (targetEra === 'recent' && inRecent) ||
                 (targetEra === 'classic' && inClassic)
-    score += hit ? 15 : (movie.year ? 4 : 0)   // small consolation for adjacent
+    score += hit ? 12 : (movie.year ? 4 : 0)   // small consolation for adjacent
   }
 
-  // (4) Quality — rating above the 7 floor (0-15).
+  // (4) Quality — rating above the 7 floor (0-17), bumped slightly so
+  // well-rated movies clearly stand out under the new weight regime.
   if (movie.rating) {
-    score += Math.min(15, Math.max(0, (movie.rating - 7) * 7.5))
+    score += Math.min(17, Math.max(0, (movie.rating - 7) * 8.5))
   }
 
-  // (5) Bonus: came from "similar to <movie>" / themes / favorites' recs.
-  // Explicit signal gets a bigger bump so the user's intent dominates.
+  // (5) Make-it-feel-like boost — PROMOTED to the largest single bonus.
+  // Explicit (user gave a reference movie or themes): +35
+  // Inferred (favorites' recommendations): +17
   if (ctx.boostedIds?.has(movie.id)) {
-    score += ctx.explicitMode ? 25 : 12
+    score += ctx.explicitMode ? 35 : 17
   }
 
   // (6) Penalty: down-weighted genres — capped at -20 total.
@@ -361,7 +372,7 @@ function scoreCandidate(movie, ctx) {
   }
   score -= Math.min(penalty, 20)
 
-  // Clean 0-100 range so "Top match: 102/100" can never appear again.
+  // Clean 0-100 range.
   return Math.max(0, Math.min(100, score))
 }
 
@@ -571,8 +582,24 @@ function PickPage() {
   }, [similarQuery, similarTo])
 
   // ── Generate ──────────────────────────────────────────────────────
+  // Any one of these signals is enough to ask the picker to run. Previously
+  // we required mood AND occasion; now reference movie or themes alone work
+  // (and mood+occasion is still valid). This pairs with the new architecture
+  // where "Make it feel like" is the lead signal and vibe is demoted.
+  const canGenerate = !!similarTo || pickedThemes.size > 0 || (moods.length > 0 && !!occasion)
+
+  // Lifted from FineTune so both FineTune and the top-level ThemesSection
+  // can mutate the picked-themes set without prop-drilling setters around.
+  function toggleTheme(name) {
+    setPickedThemes((s) => {
+      const n = new Set(s)
+      n.has(name) ? n.delete(name) : n.add(name)
+      return n
+    })
+  }
+
   async function generate() {
-    if (moods.length === 0 || !occasion) return
+    if (!canGenerate) return
     setLoading(true); setError(null); setPicks(null); setTopScore(null)
 
     const occasionOpt = OCCASIONS.find((o) => o.value === occasion) || {}
@@ -821,19 +848,21 @@ function PickPage() {
     })
   }
 
-  // Quick summary of what's active in the optional section
+  // Quick summary of what's active in the fine-tune section. Reflects the
+  // new architecture: mood + occasion live INSIDE fine-tune now, so they
+  // appear in the summary; reference + themes are top-level so they don't.
   const advancedSummary = useMemo(() => {
     const parts = []
+    if (moods.length > 0)  parts.push(moods.join('+'))
+    if (occasion)          parts.push(OCCASIONS.find((o) => o.value === occasion)?.label?.toLowerCase())
     if (era !== 'any')     parts.push(ERAS.find((e) => e.value === era)?.label)
     if (length !== 'any')  parts.push(LENGTHS.find((l) => l.value === length)?.label)
-    if (avoidIds.size)     parts.push(`-${avoidIds.size}`)
-    if (pickedThemes.size) parts.push(`+${pickedThemes.size} themes`)
     if (languages.size)    parts.push(`${languages.size} langs`)
-    if (similarTo)         parts.push(`like ${similarTo.title}`)
+    if (avoidIds.size)     parts.push(`-${avoidIds.size}`)
     if (prompt.trim())     parts.push('custom prompt')
     if (pace !== 50)       parts.push(pace < 50 ? 'slow' : 'fast')
-    return parts.join(' · ')
-  }, [era, length, avoidIds, pickedThemes, languages, similarTo, prompt, pace])
+    return parts.filter(Boolean).join(' · ')
+  }, [moods, occasion, era, length, avoidIds, languages, prompt, pace])
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
@@ -847,7 +876,7 @@ function PickPage() {
           What should I watch?
         </h1>
         <p className="text-sm text-neutral-500 dark:text-white/60">
-          Two quick questions — or dial it in.
+          Start with a movie you love — or skip and pick by theme.
         </p>
       </header>
 
@@ -883,27 +912,34 @@ function PickPage() {
         ) : (
           <motion.section key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
 
-            <VibePanel
-              moods={moods}
-              occasion={occasion}
-              toggleMood={toggleMood}
-              setOccasion={setOccasion}
+            {/* ── PRIMARY 1 — Make it feel like (highest scoring weight) ── */}
+            <ReferenceSection
+              similarTo={similarTo} setSimilarTo={setSimilarTo}
+              similarQuery={similarQuery} setSimilarQuery={setSimilarQuery}
+              similarResults={similarResults}
+              similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
+              userFavorites={items.filter((i) => i.isFavorite && i.mediaType === 'movie')}
             />
 
+            {/* ── PRIMARY 2 — Hashtags / themes ── */}
+            <ThemesSection
+              moods={moods}
+              occasion={occasion}
+              pickedThemes={pickedThemes}
+              onToggle={toggleTheme}
+            />
+
+            {/* ── FILTERS — collapsible. Includes the demoted "Set the vibe". ── */}
             <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
               <FineTune
                 moods={moods} occasion={occasion}
+                toggleMood={toggleMood} setOccasion={setOccasion}
                 era={era} setEra={setEra}
                 length={length} setLength={setLength}
                 avoidIds={avoidIds} setAvoidIds={setAvoidIds}
-                pickedThemes={pickedThemes} setPickedThemes={setPickedThemes}
                 languages={languages} setLanguages={setLanguages}
                 pace={pace} setPace={setPace}
                 prompt={prompt} setPrompt={setPrompt}
-                similarTo={similarTo} setSimilarTo={setSimilarTo}
-                similarQuery={similarQuery} setSimilarQuery={setSimilarQuery}
-                similarResults={similarResults}
-                similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
               />
             </FineTuneToggle>
 
@@ -939,7 +975,7 @@ function PickPage() {
             )}
 
             <AnimatePresence>
-              {moods.length > 0 && occasion && (
+              {canGenerate && (
                 <motion.div
                   initial={{ opacity: 0, y: 12, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1086,6 +1122,174 @@ function VibePanel({ moods, occasion, toggleMood, setOccasion }) {
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// ReferenceSection — the PRIMARY input. "Make it feel like" was a buried
+// row inside fine-tune; it's now a hero panel at the top of the form,
+// reflecting its #1 weight in scoreCandidate.
+//
+// Confused-user help: when the user has favorites, surfaces 5 of them as
+// one-click chips; otherwise the placeholder shows iconic examples.
+// ─────────────────────────────────────────────────────────────────────
+function ReferenceSection({
+  similarTo, setSimilarTo,
+  similarQuery, setSimilarQuery,
+  similarResults, similarOpen, setSimilarOpen,
+  userFavorites = [],
+}) {
+  const hasFavs = userFavorites.length >= 3
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30 shadow-2xl shadow-black/30 overflow-hidden"
+    >
+      {/* Decorative gold glow that breathes */}
+      <motion.div
+        aria-hidden
+        className="absolute -top-20 -right-20 w-72 h-72 bg-brand/[0.18] rounded-full blur-3xl pointer-events-none"
+        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.75, 0.5] }}
+        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Eyebrow + live dot */}
+      <div className="relative flex items-center gap-2.5 mb-2">
+        <span className="relative flex w-2.5 h-2.5">
+          <motion.span
+            aria-hidden
+            className="absolute inset-0 rounded-full bg-brand"
+            animate={{ scale: [1, 2.4, 1], opacity: [0.65, 0, 0.65] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+          />
+          <span className="relative w-2.5 h-2.5 rounded-full bg-brand shadow-[0_0_10px_rgba(212,175,55,0.7)]" />
+        </span>
+        <span className="text-[11px] font-bold tracking-[0.25em] uppercase text-brand">
+          Most important
+        </span>
+      </div>
+
+      <div className="relative">
+        <h2 className="font-display text-2xl sm:text-3xl tracking-[0.02em] mb-1">
+          Pick a movie you love
+        </h2>
+        <p className="text-sm text-neutral-500 dark:text-white/60 mb-4">
+          We'll score thousands of films against this one and surface the closest matches.
+        </p>
+
+        {/* Search input — or, once a movie is picked, a polished chip */}
+        <div className="relative">
+          {similarTo ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+              className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-brand/20 border border-brand/50 text-sm font-semibold text-brand shadow-md shadow-brand/30"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M12 2l2.6 7.4H22l-6.2 4.5 2.4 7.4-6.2-4.5-6.2 4.5 2.4-7.4L2 9.4h7.4z" />
+              </svg>
+              <span>{similarTo.title}</span>
+              <button
+                onClick={() => { setSimilarTo(null); setSimilarQuery('') }}
+                className="text-brand/70 hover:text-brand ml-1 text-lg leading-none"
+                aria-label="Clear reference movie"
+              >
+                ×
+              </button>
+            </motion.div>
+          ) : (
+            <input
+              type="text"
+              value={similarQuery}
+              onChange={(e) => setSimilarQuery(e.target.value)}
+              onFocus={() => setSimilarOpen(true)}
+              onBlur={() => setTimeout(() => setSimilarOpen(false), 150)}
+              placeholder="e.g. Inception, La La Land, Parasite, Heat…"
+              className="w-full px-5 py-3 rounded-full text-base bg-white/[0.06] border border-white/15 placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.1] transition"
+            />
+          )}
+
+          {/* Autocomplete dropdown */}
+          {similarOpen && similarResults.length > 0 && !similarTo && (
+            <div className="absolute z-20 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden">
+              {similarResults.map((m) => (
+                <button
+                  key={m.id}
+                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title }); setSimilarQuery(''); setSimilarOpen(false) }}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left transition"
+                >
+                  {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded" />}
+                  <span className="text-sm flex-1 min-w-0 truncate">{m.title}</span>
+                  {m.year && <span className="text-xs text-white/50">{m.year}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Confused-user help: surface user's own favorites as quick picks */}
+        {!similarTo && hasFavs && (
+          <div className="mt-4">
+            <div className="text-[10px] tracking-[0.2em] uppercase text-neutral-500 dark:text-white/40 mb-1.5">
+              From your favorites
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {userFavorites.slice(0, 5).map((f) => (
+                <motion.button
+                  key={f.id}
+                  onClick={() => setSimilarTo({ id: f.id, title: f.title })}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.94 }}
+                  className="px-3 py-1.5 rounded-full text-xs bg-white/[0.06] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70 transition"
+                >
+                  {f.title}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!similarTo && !hasFavs && (
+          <p className="text-[11px] text-neutral-500 dark:text-white/40 mt-3">
+            Not sure? You can also skip — pick themes below, or set a vibe in fine-tune.
+          </p>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ThemesSection — wraps ThemeChips in a quieter panel that matches the
+// ReferenceSection's visual rhythm without competing for attention.
+// ─────────────────────────────────────────────────────────────────────
+function ThemesSection({ moods, occasion, pickedThemes, onToggle }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut', delay: 0.05 }}
+      className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-xl shadow-black/20 overflow-hidden"
+    >
+      {/* subtle ambient glow, calmer than the reference panel */}
+      <motion.div
+        aria-hidden
+        className="absolute -bottom-20 -left-20 w-64 h-64 bg-brand/[0.06] rounded-full blur-3xl pointer-events-none"
+        animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.6, 0.4] }}
+        transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <div className="relative">
+        <ThemeChips
+          moods={moods}
+          occasion={occasion}
+          pickedThemes={pickedThemes}
+          onToggle={onToggle}
+        />
+      </div>
+    </motion.div>
+  )
+}
+
 // Small filled circle that springs from grey -> brand when its step is done.
 function ProgressDot({ active }) {
   return (
@@ -1168,9 +1372,9 @@ function FineTuneToggle({ open, summary, onToggle, children }) {
             </svg>
           </span>
           <div className="min-w-0">
-            <div className="text-sm font-semibold">Fine-tune (optional)</div>
+            <div className="text-sm font-semibold">Filters (optional)</div>
             <div className="text-[11px] text-neutral-500 dark:text-white/50 truncate">
-              {summary || 'Reference movie, themes, languages, era, length, pace, prompts'}
+              {summary || 'Vibe, languages, era, length, avoid, pace, prompt'}
             </div>
           </div>
         </div>
@@ -1197,83 +1401,27 @@ function FineTuneToggle({ open, summary, onToggle, children }) {
 
 function FineTune(props) {
   const {
-    moods, occasion,
+    moods, occasion, toggleMood, setOccasion,
     era, setEra, length, setLength,
-    avoidIds, setAvoidIds, pickedThemes, setPickedThemes,
+    avoidIds, setAvoidIds,
     languages, setLanguages, pace, setPace,
-    prompt, setPrompt, similarTo, setSimilarTo,
-    similarQuery, setSimilarQuery, similarResults,
-    similarOpen, setSimilarOpen,
+    prompt, setPrompt,
   } = props
 
   function toggleAvoid(id) { setAvoidIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n }) }
-  function toggleTheme(name) { setPickedThemes((s) => { const n = new Set(s); n.has(name) ? n.delete(name) : n.add(name); return n }) }
   function toggleLang(code) { setLanguages((s) => { const n = new Set(s); n.has(code) ? n.delete(code) : n.add(code); return n }) }
-
-  const inputRef = useRef(null)
 
   return (
     <>
-      {/* [#3] Similar to */}
-      <Row label="Make it feel like…">
-        <div className="relative">
-          {similarTo ? (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand/15 border border-brand/40 text-sm text-brand">
-              {similarTo.title}
-              <button onClick={() => { setSimilarTo(null); setSimilarQuery('') }} className="text-brand/70 hover:text-brand">×</button>
-            </div>
-          ) : (
-            <input
-              ref={inputRef}
-              type="text"
-              value={similarQuery}
-              onChange={(e) => setSimilarQuery(e.target.value)}
-              onFocus={() => setSimilarOpen(true)}
-              onBlur={() => setTimeout(() => setSimilarOpen(false), 150)}
-              placeholder="Type a movie you love…"
-              className="w-full sm:max-w-sm px-3.5 py-2 rounded-full text-sm bg-white/[0.04] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand transition"
-            />
-          )}
-          {similarOpen && similarResults.length > 0 && !similarTo && (
-            <div className="absolute z-20 mt-1 w-full sm:max-w-sm rounded-xl bg-neutral-900 border border-white/10 shadow-xl overflow-hidden">
-              {similarResults.map((m) => (
-                <button
-                  key={m.id}
-                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title }); setSimilarQuery(''); setSimilarOpen(false) }}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left transition"
-                >
-                  {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded" />}
-                  <span className="text-sm flex-1 min-w-0 truncate">{m.title}</span>
-                  {m.year && <span className="text-xs text-white/50">{m.year}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </Row>
-
-      {/* [#2] Free-text prompt */}
-      <Row label="Or describe the vibe in your own words">
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={2}
-          placeholder='e.g. "a chill movie about food" or "twisty thriller, not too violent"'
-          className="w-full px-3.5 py-2 rounded-xl text-sm bg-white/[0.04] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand transition resize-none"
-        />
-      </Row>
-
-      {/* [#4] Themes — bank of ~95, but we only surface the top ~18 ranked
-          by overlap with the user's mood + occasion. Live re-ranks as those
-          selections change; "show more" reveals the full grouped catalogue. */}
-      <ThemeChips
+      {/* DEMOTED: "Set the vibe" — now a filter, no longer the top of the form. */}
+      <VibePanel
         moods={moods}
         occasion={occasion}
-        pickedThemes={pickedThemes}
-        onToggle={toggleTheme}
+        toggleMood={toggleMood}
+        setOccasion={setOccasion}
       />
 
-      {/* [#8] International */}
+      {/* International */}
       <Row label="International cinema">
         <div className="flex flex-wrap gap-2">
           {LANGUAGES.map((l) => {
@@ -1333,6 +1481,17 @@ function FineTune(props) {
           })}
         </div>
       </Row>
+
+      {/* Free-text prompt — last because most users won't use it */}
+      <Row label="Describe the vibe in your own words (optional)">
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={2}
+          placeholder='e.g. "a chill movie about food" or "twisty thriller, not too violent"'
+          className="w-full px-3.5 py-2 rounded-xl text-sm bg-white/[0.04] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand transition resize-none"
+        />
+      </Row>
     </>
   )
 }
@@ -1368,8 +1527,11 @@ function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
     () => rankThemes(THEME_BANK, moods, occasion, pickedThemes),
     [moods, occasion, pickedThemes]
   )
-  const suggested = ranked.slice(0, SUGGESTED_COUNT)
-  const remaining = ranked.slice(SUGGESTED_COUNT)
+  // Picks live in their own row — they're not duplicated in suggestions.
+  const pickedList = ranked.filter((t) => pickedThemes.has(t.name))
+  const unpicked   = ranked.filter((t) => !pickedThemes.has(t.name))
+  const suggested  = unpicked.slice(0, SUGGESTED_COUNT)
+  const remaining  = unpicked.slice(SUGGESTED_COUNT)
   // Group the remaining themes by category for the expanded view.
   const remainingByCat = useMemo(() => {
     const out = {}
@@ -1386,33 +1548,82 @@ function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
     : 'Popular themes'
 
   return (
-    <div className="space-y-1.5">
-      {/* Row label with live status */}
+    <div className="space-y-3">
+      {/* Section header — bigger now that themes is a primary input */}
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] font-bold tracking-wider uppercase text-neutral-500 dark:text-white/40">
-          Themes
+        <div>
+          <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+            Themes
+            <span className="text-xs font-normal text-neutral-500 dark:text-white/40">
+              {THEME_BANK.length} keywords from TMDb
+            </span>
+          </h2>
         </div>
         <div className="flex items-center gap-2 text-[10px] tracking-[0.15em] uppercase">
-          {hasMoodOrOccasion && (
+          {hasMoodOrOccasion ? (
             <span className="inline-flex items-center gap-1 text-brand">
               <motion.span
+                aria-hidden
                 className="w-1.5 h-1.5 rounded-full bg-brand"
                 animate={{ opacity: [0.4, 1, 0.4] }}
                 transition={{ duration: 1.6, repeat: Infinity }}
               />
               {headerLabel}
             </span>
-          )}
-          {!hasMoodOrOccasion && (
+          ) : (
             <span className="text-neutral-400 dark:text-white/30">{headerLabel}</span>
-          )}
-          {pickedThemes.size > 0 && (
-            <span className="text-brand">· {pickedThemes.size} picked</span>
           )}
         </div>
       </div>
 
-      {/* Suggested chips — animated reorder */}
+      {/* PINNED ROW — picked themes get their own surface so they're never
+          lost when the user scrolls through suggestions or expands the bank. */}
+      <AnimatePresence initial={false}>
+        {pickedList.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.22 }}
+            className="overflow-hidden"
+          >
+            <div className="p-2.5 rounded-xl bg-brand/[0.08] border border-brand/30 ring-1 ring-brand/10">
+              <div className="text-[10px] font-bold tracking-[0.18em] uppercase text-brand/90 mb-1.5 flex items-center gap-1.5">
+                <span>Your picks · {pickedList.length}</span>
+                <motion.span
+                  aria-hidden
+                  className="w-1 h-1 rounded-full bg-brand"
+                  animate={{ scale: [1, 1.6, 1], opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 1.4, repeat: Infinity }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <AnimatePresence initial={false}>
+                  {pickedList.map((t) => (
+                    <motion.button
+                      key={t.name}
+                      layout
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.85 }}
+                      transition={{ duration: 0.18 }}
+                      onClick={() => onToggle(t.name)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.94 }}
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold bg-brand text-black border border-brand shadow-md shadow-brand/30"
+                    >
+                      #{t.name.replace(/ /g, '-')}
+                      <span className="ml-1 opacity-60">×</span>
+                    </motion.button>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Suggested chips — animated reorder as mood/occasion change */}
       <div className="flex flex-wrap gap-1.5">
         <AnimatePresence initial={false}>
           {suggested.map((t) => (
@@ -1426,11 +1637,7 @@ function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
               onClick={() => onToggle(t.name)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.94 }}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                pickedThemes.has(t.name)
-                  ? 'bg-brand text-black border border-brand shadow-md shadow-brand/30'
-                  : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
-              }`}
+              className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70"
             >
               #{t.name.replace(/ /g, '-')}
             </motion.button>

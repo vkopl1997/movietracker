@@ -118,9 +118,11 @@ const LANGUAGES = [
 // Tiny "NLP" — turns "twisty mystery without too much violence" into
 // concrete filter tweaks. Keyword spotting, no AI.
 function parsePrompt(text) {
-  const t = (text || '').toLowerCase()
-  if (!t.trim()) return {}
+  // Always return the full shape so callers can safely spread .boostGenres /
+  // .excludeGenres / .themes without null-checking each one.
   const filters = { boostGenres: [], excludeGenres: [], themes: [] }
+  const t = (text || '').toLowerCase()
+  if (!t.trim()) return filters
   const keyword = (re, fn) => { if (re.test(t)) fn(filters) }
 
   // Direct genre nudges

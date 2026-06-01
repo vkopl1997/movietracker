@@ -98,6 +98,32 @@ export async function findKeywordId(name) {
   }
 }
 
+// Live-search TMDb keywords for autocomplete. Returns up to 10 matches as
+// { id, name } pairs. The full TMDb keyword catalogue is ~30k entries, way
+// more than our curated bank of 99 — this is what makes hashtags genuinely
+// powerful instead of being limited to whatever we hardcoded.
+export async function searchKeywords(query) {
+  if (!query?.trim()) return []
+  try {
+    const data = await tmdbFetch(`/search/keyword?query=${encodeURIComponent(query)}`)
+    return (data.results ?? []).slice(0, 10).map((k) => ({ id: k.id, name: k.name }))
+  } catch {
+    return []
+  }
+}
+
+// Fetch the TMDb keywords attached to a specific movie. Used to bridge the
+// "Make it feel like" choice into the Themes section ("Themes from Inception:
+// #dream #subconscious #heist…") so the two inputs feed each other.
+export async function getMovieKeywords(movieId) {
+  try {
+    const data = await tmdbFetch(`/movie/${movieId}/keywords`)
+    return (data.keywords ?? []).map((k) => ({ id: k.id, name: k.name }))
+  } catch {
+    return []
+  }
+}
+
 // Get TMDb "similar" + "recommendations" for a single movie (for the
 // "Make it feel like ___" feature on the Pick page).
 export async function getMovieRecommendations(id, page = 1) {

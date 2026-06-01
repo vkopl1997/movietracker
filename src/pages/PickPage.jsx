@@ -26,6 +26,8 @@ import {
   discoverMovies,
   searchMulti,
   findKeywordId,
+  searchKeywords,
+  getMovieKeywords,
   getMovieRecommendations,
   getMediaDetails,
 } from '../lib/tmdb'
@@ -925,12 +927,14 @@ function PickPage() {
               similarResults={similarResults}
               similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
               userFavorites={items.filter((i) => i.isFavorite && i.mediaType === 'movie')}
+              pickedThemes={pickedThemes}
             />
 
             {/* ── PRIMARY 2 — Hashtags / themes ── */}
             <ThemesSection
               moods={moods}
               occasion={occasion}
+              similarTo={similarTo}
               pickedThemes={pickedThemes}
               onToggle={toggleTheme}
             />
@@ -1141,8 +1145,38 @@ function ReferenceSection({
   similarQuery, setSimilarQuery,
   similarResults, similarOpen, setSimilarOpen,
   userFavorites = [],
+  pickedThemes = new Set(),
 }) {
   const hasFavs = userFavorites.length >= 3
+
+  // ── Themes → reference movies bridge ───────────────────────────────
+  // When the user picked any hashtags, surface popular high-rated movies
+  // that carry those keywords. One click sets similarTo, completing the
+  // round-trip between the two primary inputs.
+  const [themeMovies, setThemeMovies] = useState([])
+  const themesKey = useMemo(() => [...pickedThemes].sort().join('|'), [pickedThemes])
+  useEffect(() => {
+    if (pickedThemes.size === 0) { setThemeMovies([]); return }
+    let cancelled = false
+    Promise.all([...pickedThemes].slice(0, 3).map((name) => findKeywordId(name)))
+      .then((ids) => {
+        const validIds = ids.filter(Boolean)
+        if (validIds.length === 0) return []
+        return discoverMovies({
+          keywords: validIds,
+          minRating: 7,
+          minVoteCount: 200,
+          sortBy: 'popularity.desc',
+          page: 1,
+        })
+      })
+      .then((movies) => {
+        if (cancelled || !movies) return
+        setThemeMovies(movies.slice(0, 5))
+      })
+      .catch(() => !cancelled && setThemeMovies([]))
+    return () => { cancelled = true }
+  }, [themesKey])
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -1233,8 +1267,40 @@ function ReferenceSection({
           )}
         </div>
 
-        {/* Confused-user help: surface user's own favorites as quick picks */}
-        {!similarTo && hasFavs && (
+        {/* THEMES → MOVIES bridge: when the user picked any hashtags, surface
+            popular high-rated movies that carry those keywords. One tap sets
+            similarTo, completing the loop between the two primary inputs.
+            Shown ABOVE favorites so theme-driven discovery takes precedence. */}
+        {!similarTo && themeMovies.length > 0 && (
+          <div className="mt-4">
+            <div className="text-[10px] tracking-[0.2em] uppercase text-neutral-500 dark:text-white/40 mb-1.5 flex items-center gap-1.5">
+              <motion.span
+                aria-hidden
+                className="w-1 h-1 rounded-full bg-brand"
+                animate={{ scale: [1, 1.6, 1], opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.4, repeat: Infinity }}
+              />
+              Matched to your themes
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {themeMovies.map((m) => (
+                <motion.button
+                  key={m.id}
+                  onClick={() => setSimilarTo({ id: m.id, title: m.title })}
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.94 }}
+                  className="px-3 py-1.5 rounded-full text-xs bg-brand/10 hover:bg-brand/20 border border-brand/30 hover:border-brand/50 text-brand transition"
+                >
+                  {m.title}{m.year ? ` · ${m.year}` : ''}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Confused-user help: surface user's own favorites as quick picks.
+            Hidden when theme-driven matches are showing — those win. */}
+        {!similarTo && hasFavs && themeMovies.length === 0 && (
           <div className="mt-4">
             <div className="text-[10px] tracking-[0.2em] uppercase text-neutral-500 dark:text-white/40 mb-1.5">
               From your favorites
@@ -1255,7 +1321,7 @@ function ReferenceSection({
           </div>
         )}
 
-        {!similarTo && !hasFavs && (
+        {!similarTo && !hasFavs && themeMovies.length === 0 && (
           <p className="text-[11px] text-neutral-500 dark:text-white/40 mt-3">
             Not sure? You can also skip — pick themes below, or set a vibe in fine-tune.
           </p>
@@ -1269,7 +1335,7 @@ function ReferenceSection({
 // ThemesSection — wraps ThemeChips in a quieter panel that matches the
 // ReferenceSection's visual rhythm without competing for attention.
 // ─────────────────────────────────────────────────────────────────────
-function ThemesSection({ moods, occasion, pickedThemes, onToggle }) {
+function ThemesSection({ moods, occasion, similarTo, pickedThemes, onToggle }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -1288,6 +1354,7 @@ function ThemesSection({ moods, occasion, pickedThemes, onToggle }) {
         <ThemeChips
           moods={moods}
           occasion={occasion}
+          similarTo={similarTo}
           pickedThemes={pickedThemes}
           onToggle={onToggle}
         />
@@ -1526,8 +1593,43 @@ function rankThemes(bank, moods, occasion, pickedThemes) {
     .sort((a, b) => b.score - a.score)
 }
 
-function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
+function ThemeChips({ moods, occasion, similarTo, pickedThemes, onToggle }) {
   const [showAll, setShowAll] = useState(false)
+
+  // ── Live TMDb keyword search ───────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  useEffect(() => {
+    const q = searchQuery.trim()
+    if (!q) { setSearchResults([]); return }
+    let cancelled = false
+    const t = setTimeout(() => {
+      searchKeywords(q)
+        .then((res) => { if (!cancelled) setSearchResults(res) })
+        .catch(() => !cancelled && setSearchResults([]))
+    }, 220)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [searchQuery])
+
+  // ── Reference-movie → themes bridge ────────────────────────────────
+  // When the user picks a "feel like" reference, we pull TMDb's own
+  // keywords for that movie and surface them as a dedicated row. Keywords
+  // already in our curated bank come first (we'd suggest them anyway),
+  // then the long-tail ones unique to that movie.
+  const [movieKeywords, setMovieKeywords] = useState([])
+  useEffect(() => {
+    if (!similarTo?.id) { setMovieKeywords([]); return }
+    let cancelled = false
+    getMovieKeywords(similarTo.id).then((kws) => {
+      if (cancelled) return
+      const bankSet = new Set(THEME_BANK.map((t) => t.name))
+      const inBank = kws.filter((k) => bankSet.has(k.name))
+      const notInBank = kws.filter((k) => !bankSet.has(k.name))
+      setMovieKeywords([...inBank, ...notInBank].slice(0, 10))
+    }).catch(() => !cancelled && setMovieKeywords([]))
+    return () => { cancelled = true }
+  }, [similarTo?.id])
 
   const ranked = useMemo(
     () => rankThemes(THEME_BANK, moods, occasion, pickedThemes),
@@ -1538,6 +1640,9 @@ function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
   const unpicked   = ranked.filter((t) => !pickedThemes.has(t.name))
   const suggested  = unpicked.slice(0, SUGGESTED_COUNT)
   const remaining  = unpicked.slice(SUGGESTED_COUNT)
+
+  // Movie-keywords minus ones already picked, so we don't show duplicates
+  const visibleMovieKeywords = movieKeywords.filter((k) => !pickedThemes.has(k.name))
   // Group the remaining themes by category for the expanded view.
   const remainingByCat = useMemo(() => {
     const out = {}
@@ -1561,7 +1666,7 @@ function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
           <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
             Themes
             <span className="text-xs font-normal text-neutral-500 dark:text-white/40">
-              {THEME_BANK.length} keywords from TMDb
+              Search any keyword, or pick from popular
             </span>
           </h2>
         </div>
@@ -1581,6 +1686,80 @@ function ThemeChips({ moods, occasion, pickedThemes, onToggle }) {
           )}
         </div>
       </div>
+
+      {/* SEARCH — live-query the full TMDb keyword catalogue (~30k entries).
+          The curated bank below is the highlight reel; this is the fallback
+          for anything specific the user wants that isn't in our 99. */}
+      <div className="relative">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onFocus={() => setSearchOpen(true)}
+          onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+          placeholder="Search any theme…  e.g. dream, samurai, mafia"
+          className="w-full px-4 py-2.5 rounded-2xl text-sm bg-white/[0.05] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.08] transition"
+        />
+        {searchOpen && searchResults.length > 0 && (
+          <div className="absolute z-30 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
+            {searchResults.map((kw) => {
+              const already = pickedThemes.has(kw.name)
+              return (
+                <button
+                  key={kw.id}
+                  onMouseDown={() => {
+                    if (!already) onToggle(kw.name)
+                    setSearchQuery('')
+                    setSearchOpen(false)
+                  }}
+                  className={`w-full text-left px-3 py-2 hover:bg-white/5 transition flex items-center justify-between gap-2 ${already ? 'opacity-50' : ''}`}
+                >
+                  <span className="text-sm">
+                    <span className="text-brand">#</span>{kw.name.replace(/ /g, '-')}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+                    {already ? 'picked' : 'add'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* REFERENCE-MOVIE KEYWORDS — when the user picked a "feel like" movie,
+          surface TMDb's own keywords for that movie. Bridges the two primary
+          inputs so they feed each other. */}
+      <AnimatePresence initial={false}>
+        {similarTo && visibleMovieKeywords.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.22 }}
+            className="overflow-hidden"
+          >
+            <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10">
+              <div className="text-[10px] font-bold tracking-[0.18em] uppercase text-neutral-400 dark:text-white/50 mb-1.5">
+                Themes from <span className="text-brand">{similarTo.title}</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {visibleMovieKeywords.map((kw) => (
+                  <motion.button
+                    key={kw.id}
+                    onClick={() => onToggle(kw.name)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
+                    className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] hover:bg-brand/15 border border-white/10 hover:border-brand/40 text-neutral-700 dark:text-white/70 hover:text-brand transition"
+                  >
+                    #{kw.name.replace(/ /g, '-')}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* PINNED ROW — picked themes get their own surface so they're never
           lost when the user scrolls through suggestions or expands the bank. */}

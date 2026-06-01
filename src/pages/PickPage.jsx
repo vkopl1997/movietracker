@@ -12,6 +12,14 @@
 //   9. Pace slider             — slow burn ←→ fast-paced
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+
+// Always enforce at least this TMDb rating, even when the strict filter is
+// too restrictive and we have to widen other constraints.
+const HIGH_RATING_FLOOR = 7
+
+// sessionStorage key — picker state survives navigating to a detail page
+// and clicking back. Cleared when the user clicks "Start over".
+const SESSION_KEY = 'mt_pick_state_v1'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useFavorites } from '../lib/FavoritesContext'
 import {
@@ -213,6 +221,56 @@ function PickPage() {
     [items]
   )
 
+  // ── Persist state across navigations ──────────────────────────────
+  // When the user opens a movie from the results, PickPage unmounts.
+  // sessionStorage lets us restore the entire picker — selections + picks +
+  // memory — when they hit back. Cleared by reset().
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current) return
+    restoredRef.current = true
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY)
+      if (!raw) return
+      const s = JSON.parse(raw)
+      if (Array.isArray(s.moods))     setMoods(s.moods)
+      if (s.occasion)                 setOccasion(s.occasion)
+      if (s.era)                      setEra(s.era)
+      if (s.length)                   setLength(s.length)
+      if (typeof s.pace === 'number') setPace(s.pace)
+      setAvoidIds(new Set(s.avoidIds || []))
+      setPickedThemes(new Set(s.pickedThemes || []))
+      setLanguages(new Set(s.languages || []))
+      if (typeof s.prompt === 'string') setPrompt(s.prompt)
+      if (s.similarTo)                setSimilarTo(s.similarTo)
+      setSeenIds(new Set(s.seenIds || []))
+      if (s.downGenres)               setDownGenres(s.downGenres)
+      if (typeof s.sortIdx === 'number') setSortIdx(s.sortIdx)
+      if (typeof s.round === 'number')   setRound(s.round)
+      if (s.hasPicked)                setHasPicked(true)
+      if (Array.isArray(s.picks))     setPicks(s.picks)
+      if (s.advancedOpen)             setAdvancedOpen(true)
+    } catch { /* corrupted — ignore */ }
+  }, [])
+
+  // Save the whole picker state on every change. JSON is small (a few KB)
+  // so this is cheap; sessionStorage writes are synchronous and quick.
+  useEffect(() => {
+    if (!restoredRef.current) return
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        moods, occasion, era, length, pace,
+        avoidIds:     [...avoidIds],
+        pickedThemes: [...pickedThemes],
+        languages:    [...languages],
+        prompt, similarTo,
+        seenIds:      [...seenIds],
+        downGenres, sortIdx, round, hasPicked, picks, advancedOpen,
+      }))
+    } catch { /* quota / disabled — ignore */ }
+  }, [moods, occasion, era, length, pace, avoidIds, pickedThemes, languages,
+      prompt, similarTo, seenIds, downGenres, sortIdx, round, hasPicked, picks, advancedOpen])
+
   // ── [#1] Library taste profile — analyze user's favorites ─────────
   // Counts year buckets + rating preference + media type ratio.
   // Genre data isn't stored on favorites yet (future work), so we infer
@@ -297,7 +355,7 @@ function PickPage() {
     const genres = [...new Set([...moodGenres, ...promptFilters.boostGenres])]
 
     // Library taste profile bias [#1]: nudge minRating upward if user has high standards
-    let minRating = 7
+    let minRating = HIGH_RATING_FLOOR
     if (tasteProfile?.avgRating && tasteProfile.avgRating >= 8) minRating = 7.5
     // If user has dominant era, prefer it when user hasn't set one explicitly
     let releaseAfter  = eraOpt.releaseAfter  ?? occasionOpt.releaseAfter
@@ -351,14 +409,13 @@ function PickPage() {
     try {
       let pool = []
 
-      // [#3] Similar-to reference: use recommendations endpoint first
+      // [#3] Similar-to reference: pull recommendations and filter by rating floor
       if (similarTo?.id) {
         const recs = await getMovieRecommendations(similarTo.id)
-        // Filter by language and exclusions roughly
-        pool.push(...recs)
+        pool.push(...recs.filter((r) => (r.rating ?? 0) >= HIGH_RATING_FLOOR))
       }
 
-      // Always also pull a discover query for variety
+      // Discover query for variety
       const pageA = Math.floor(Math.random() * 3) + 1
       const pageB = pageA + 3
       const [resA, resB] = await Promise.all([
@@ -367,18 +424,24 @@ function PickPage() {
       ])
       pool.push(...resA, ...resB)
 
-      // Dedupe
+      // Dedupe + skip seen/watched + ENFORCE rating floor client-side
+      // (defense-in-depth — sometimes TMDb returns just-below-threshold items)
       const dedupe = new Set()
-      pool = pool.filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
-      // Skip seen + watched
-      pool = pool.filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
+      pool = pool
+        .filter((m) => (m.rating ?? 0) >= HIGH_RATING_FLOOR)
+        .filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
+        .filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
 
-      // Relax if too few
+      // If too few, widen OBSCURITY (vote_count) but never the rating floor
       if (pool.length < 3) {
         const relaxed = await discoverMovies({
-          ...baseFilter, minRating: 6, minVoteCount: 100, page: Math.floor(Math.random() * 4) + 1,
+          ...baseFilter,
+          minRating: HIGH_RATING_FLOOR,   // unchanged
+          minVoteCount: 100,              // smaller indie films too
+          page: Math.floor(Math.random() * 4) + 1,
         })
         const extra = relaxed.filter((m) =>
+          (m.rating ?? 0) >= HIGH_RATING_FLOOR &&
           !watchedIds.has(m.id) && !seenIds.has(m.id) && !pool.some((p) => p.id === m.id)
         )
         pool = [...pool, ...extra]
@@ -416,6 +479,7 @@ function PickPage() {
     setSimilarQuery(''); setSimilarResults([])
     setSeenIds(new Set()); setDownGenres({}); setSortIdx(0); setRound(0)
     setHasPicked(false); setPicks(null); setError(null)
+    try { sessionStorage.removeItem(SESSION_KEY) } catch {}
   }
 
   // [#7] "Show me less" — dismiss a card, down-weight its genres

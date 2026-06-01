@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { getMediaDetails } from '../lib/tmdb'
 import { fadeUp } from '../lib/motion'
@@ -10,14 +10,36 @@ import WhereToWatch from '../components/WhereToWatch'
 import TrailerModal from '../components/TrailerModal'
 import HorizontalRow from '../components/HorizontalRow'
 
+// Map a "from" path to a human label for the back link. Falls back to
+// "browse" so we never render a blank "Back to" word if state is missing.
+function backLabelForPath(from) {
+  if (!from || from === '/' || from.startsWith('/?')) return 'browse'
+  if (from.startsWith('/pick'))      return 'picker'
+  if (from.startsWith('/favorites')) return 'My List'
+  if (from.startsWith('/actors'))    return 'actors'
+  if (from.startsWith('/users'))     return 'users'
+  if (from.startsWith('/person/'))   return 'this actor'
+  if (from.startsWith('/user/'))     return 'this profile'
+  if (from.startsWith('/movie/') || from.startsWith('/tv/')) return 'the previous title'
+  return 'browse'
+}
+
 // One component handles both /movie/:id and /tv/:id.
 // We pass mediaType as a prop from the route definition.
 function MediaDetailPage({ mediaType }) {
   const { id } = useParams()
+  const location = useLocation()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showTrailer, setShowTrailer] = useState(false)
+
+  // Source page passed via Link state when the user clicked into this title.
+  // Lets us render "Back to picker" / "Back to My List" / etc. instead of
+  // always sending the user to /. Defaults to '/' if no state present
+  // (e.g. user arrived via a direct URL or refresh).
+  const from      = location.state?.from || '/'
+  const backLabel = backLabelForPath(from)
 
   // Title updates whenever new data arrives (e.g. "Inception · MovieTracker")
   usePageTitle(data?.title)
@@ -45,7 +67,7 @@ function MediaDetailPage({ mediaType }) {
     return (
       <div className="max-w-7xl mx-auto px-6 py-20">
         <p className="text-red-700 dark:text-red-300 mb-4">⚠️ {error}</p>
-        <Link to="/" className="text-brand hover:underline">← Back to browse</Link>
+        <Link to={from} className="text-brand hover:underline">← Back to {backLabel}</Link>
       </div>
     )
   }
@@ -168,10 +190,10 @@ function MediaDetailPage({ mediaType }) {
 
               <div className="mt-4">
                 <Link
-                  to="/"
+                  to={from}
                   className="text-sm text-neutral-500 dark:text-white/60 hover:text-brand transition"
                 >
-                  ← Back to browse
+                  ← Back to {backLabel}
                 </Link>
               </div>
             </div>

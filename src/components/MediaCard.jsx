@@ -1,17 +1,24 @@
 import { memo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useFavorites } from '../lib/FavoritesContext'
 import { MediaActionsCompact } from './MediaActions'
 
 function MediaCard({ id, title, year, mediaType, posterUrl, rating }) {
   const { isWatched, getUserRating } = useFavorites()
+  const location = useLocation()
   const item = { id, title, year, mediaType, posterUrl, rating }
   const watched = isWatched(item)
   const myRating = getUserRating(item)
 
+  // Capture where this card was clicked from so MediaDetailPage can render a
+  // contextual "back" link that returns the user to exactly where they came
+  // from (the picker, favorites, an actor's page, etc.) instead of always
+  // dumping them on /. We include search so "/?q=heat" round-trips correctly.
+  const backState = { from: location.pathname + location.search }
+
   return (
     <div className="group relative">
-      <Link to={`/${mediaType}/${id}`} className="block">
+      <Link to={`/${mediaType}/${id}`} state={backState} className="block">
         <div className={`
           relative aspect-[2/3] overflow-hidden rounded-xl
           bg-neutral-200 dark:bg-neutral-900

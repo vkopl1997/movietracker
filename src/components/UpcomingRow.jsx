@@ -5,7 +5,7 @@
 // Clicking the card takes you to /movie/:id where the trailer button lives.
 
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
 import { useFavorites } from '../lib/FavoritesContext'
@@ -78,7 +78,10 @@ function UpcomingRow() {
 function UpcomingCard({ item }) {
   const { user, signInWithGoogle } = useAuth()
   const { isWatchlist, toggleWatchlist } = useFavorites()
+  const location = useLocation()
   const inWatchlist = isWatchlist(item)
+  // Tell MediaDetailPage where to send the user "back" to.
+  const backState = { from: location.pathname + location.search }
 
   function handleWatchlistClick(e) {
     e.preventDefault()
@@ -92,6 +95,7 @@ function UpcomingCard({ item }) {
       {/* Backdrop → detail page */}
       <Link
         to={`/movie/${item.id}`}
+        state={backState}
         className="block group relative aspect-video rounded-xl overflow-hidden ring-1 ring-black/5 dark:ring-white/5 bg-neutral-200 dark:bg-neutral-900 transition-shadow group-hover:ring-brand/60"
       >
         {item.backdropUrl ? (
@@ -129,7 +133,7 @@ function UpcomingCard({ item }) {
           {inWatchlist ? '✓' : '+'}
         </motion.button>
 
-        <Link to={`/movie/${item.id}`} className="flex-1 min-w-0">
+        <Link to={`/movie/${item.id}`} state={backState} className="flex-1 min-w-0">
           {item.releaseDate && (
             <div className="text-[11px] font-bold tracking-wider text-neutral-500 dark:text-white/60 uppercase leading-tight">
               {shortDate(item.releaseDate)}

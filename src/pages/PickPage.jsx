@@ -12,6 +12,7 @@
 //   9. Pace slider             — slow burn ←→ fast-paced
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 // Always enforce at least this TMDb rating, even when the strict filter is
 // too restrictive and we have to widen other constraints.
@@ -406,6 +407,11 @@ function PickPage() {
   usePageTitle('What should I watch?')
   const { items } = useFavorites()
   const { user } = useAuth()
+  // Temporary URL-driven layout switcher. /pick?layout=<name> picks one of
+  // current / twocol / hero / threecol so the user can compare them live.
+  // Removed once a winner is chosen.
+  const [searchParams] = useSearchParams()
+  const layoutVariant = searchParams.get('layout') || 'current'
 
   // ── Required state ────────────────────────────────────────────────
   const [moods, setMoods]       = useState([])               // [#5] multi-select
@@ -1061,6 +1067,9 @@ function PickPage() {
         </p>
       </header>
 
+      {/* LAYOUT preview switcher — only visible when ?layout is in the URL */}
+      {searchParams.get('layout') && <LayoutSwitcher current={layoutVariant} />}
+
       <AnimatePresence mode="wait">
         {hasPicked ? (
           <ResultsView
@@ -1095,96 +1104,98 @@ function PickPage() {
             </motion.p>
           </motion.div>
         ) : (
-          <motion.section key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3 lg:space-y-4">
-
-            {/* ── PRIMARY 1 — Make it feel like (highest scoring weight) ── */}
-            <ReferenceSection
-              similarTo={similarTo} setSimilarTo={setSimilarTo}
-              similarQuery={similarQuery} setSimilarQuery={setSimilarQuery}
-              similarResults={similarResults}
-              similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
-              userFavorites={items.filter((i) => i.isFavorite && i.mediaType === 'movie')}
-              pickedThemes={pickedThemes}
-            />
-
-            {/* ── PRIMARY 2 — Media type filter ── */}
-            <MediaTypeSection mediaType={mediaType} setMediaType={setMediaType} />
-
-            {/* ── PRIMARY 3 — Hashtags / themes ── */}
-            <ThemesSection
-              moods={moods}
-              occasion={occasion}
-              similarTo={similarTo}
-              pickedThemes={pickedThemes}
-              onToggle={toggleTheme}
-            />
-
-            {/* ── FILTERS — collapsible. Includes the demoted "Set the vibe". ── */}
-            <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
-              <FineTune
-                moods={moods} occasion={occasion}
-                toggleMood={toggleMood} setOccasion={setOccasion}
-                era={era} setEra={setEra}
-                length={length} setLength={setLength}
-                avoidIds={avoidIds} setAvoidIds={setAvoidIds}
-                languages={languages} setLanguages={setLanguages}
-                pace={pace} setPace={setPace}
-                prompt={prompt} setPrompt={setPrompt}
+          <FormLayoutDispatcher
+            layout={layoutVariant}
+            // sections — each rendered inside the chosen grid layout
+            reference={
+              <ReferenceSection
+                similarTo={similarTo} setSimilarTo={setSimilarTo}
+                similarQuery={similarQuery} setSimilarQuery={setSimilarQuery}
+                similarResults={similarResults}
+                similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
+                userFavorites={items.filter((i) => i.isFavorite && i.mediaType === 'movie')}
+                pickedThemes={pickedThemes}
               />
-            </FineTuneToggle>
-
-            {/* [#1] Library taste transparency */}
-            {tasteProfile && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center text-xs text-neutral-500 dark:text-white/50"
-              >
-                Tuning to your taste — {tasteProfile.totalFavs} favorites,{' '}
-                {tasteProfile.dominantEra ? `mostly ${tasteProfile.dominantEra}` : 'mixed eras'}
-                {tasteProfile.avgRating ? `, average rating ${tasteProfile.avgRating}` : ''}
-                {topGenres.length > 0 && (
-                  <> · favors{' '}
-                    <span className="text-brand">
-                      {topGenres.slice(0, 3).map((id) => GENRE_NAMES[id]).filter(Boolean).join(', ')}
-                    </span>
-                  </>
-                )}
-                .
-              </motion.div>
-            )}
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center"
-              >
-                {error}
-              </motion.div>
-            )}
-
-            <AnimatePresence>
-              {canGenerate && (
+            }
+            mediaTypeBlock={<MediaTypeSection mediaType={mediaType} setMediaType={setMediaType} />}
+            themes={
+              <ThemesSection
+                moods={moods}
+                occasion={occasion}
+                similarTo={similarTo}
+                pickedThemes={pickedThemes}
+                onToggle={toggleTheme}
+              />
+            }
+            fineTune={
+              <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
+                <FineTune
+                  moods={moods} occasion={occasion}
+                  toggleMood={toggleMood} setOccasion={setOccasion}
+                  era={era} setEra={setEra}
+                  length={length} setLength={setLength}
+                  avoidIds={avoidIds} setAvoidIds={setAvoidIds}
+                  languages={languages} setLanguages={setLanguages}
+                  pace={pace} setPace={setPace}
+                  prompt={prompt} setPrompt={setPrompt}
+                />
+              </FineTuneToggle>
+            }
+            taste={
+              tasteProfile && (
                 <motion.div
-                  initial={{ opacity: 0, y: 12, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 12 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-                  className="text-center pt-2"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center text-xs text-neutral-500 dark:text-white/50"
                 >
-                  <motion.button
-                    onClick={generate}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full max-w-xs mx-auto py-3.5 rounded-2xl text-base font-semibold bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition"
-                  >
-                    Find me something
-                  </motion.button>
+                  Tuning to your taste — {tasteProfile.totalFavs} favorites,{' '}
+                  {tasteProfile.dominantEra ? `mostly ${tasteProfile.dominantEra}` : 'mixed eras'}
+                  {tasteProfile.avgRating ? `, average rating ${tasteProfile.avgRating}` : ''}
+                  {topGenres.length > 0 && (
+                    <> · favors{' '}
+                      <span className="text-brand">
+                        {topGenres.slice(0, 3).map((id) => GENRE_NAMES[id]).filter(Boolean).join(', ')}
+                      </span>
+                    </>
+                  )}
+                  .
                 </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.section>
+              )
+            }
+            error={
+              error && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center"
+                >
+                  {error}
+                </motion.div>
+              )
+            }
+            cta={
+              <AnimatePresence>
+                {canGenerate && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 12 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                    className="text-center pt-2"
+                  >
+                    <motion.button
+                      onClick={generate}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="w-full max-w-xs mx-auto py-3.5 rounded-2xl text-base font-semibold bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition"
+                    >
+                      Find me something
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            }
+          />
         )}
       </AnimatePresence>
     </main>
@@ -1194,6 +1205,136 @@ function PickPage() {
 // ───────────────────────────────────────────────────────────────────────
 //  ──── Subcomponents ─────────────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────
+// FormLayoutDispatcher — arranges the form sections into one of four
+// layouts based on the URL param ?layout=…. Default ('current') matches
+// the production vertical stack. Variants try to fit more on a laptop
+// without scrolling, each with a different feel.
+// ─────────────────────────────────────────────────────────────────────
+function FormLayoutDispatcher({ layout, reference, mediaTypeBlock, themes, fineTune, taste, error, cta }) {
+  const sharedTrailing = (
+    <>
+      {taste}
+      {error}
+      {cta}
+    </>
+  )
+
+  // TWO-COLUMN WORKSPACE — wide left (primary inputs), slim right (filters)
+  if (layout === 'twocol') {
+    return (
+      <motion.section
+        key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="space-y-3 lg:space-y-4"
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+          <div className="lg:col-span-7 space-y-3 lg:space-y-4">
+            {reference}
+            {themes}
+          </div>
+          <div className="lg:col-span-5 space-y-3 lg:space-y-4">
+            {mediaTypeBlock}
+            {fineTune}
+          </div>
+        </div>
+        {sharedTrailing}
+      </motion.section>
+    )
+  }
+
+  // CINEMATIC HERO + SIDEBAR — reference is a wide hero panel, everything
+  // else lives in a vertical sidebar to its right (themes still gets room).
+  if (layout === 'hero') {
+    return (
+      <motion.section
+        key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="space-y-3 lg:space-y-4"
+      >
+        {/* Hero row: reference takes most width, media-type pills sit beside it */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+          <div className="lg:col-span-9">{reference}</div>
+          <div className="lg:col-span-3 space-y-3 lg:space-y-4">
+            {mediaTypeBlock}
+            {fineTune}
+          </div>
+        </div>
+        {/* Themes goes full width below — it's the chip cloud, needs space */}
+        {themes}
+        {sharedTrailing}
+      </motion.section>
+    )
+  }
+
+  // THREE-COLUMN COMMAND CENTER — max density, three rails side by side
+  if (layout === 'threecol') {
+    return (
+      <motion.section
+        key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="space-y-3 lg:space-y-4"
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+          <div className="lg:col-span-4 space-y-3 lg:space-y-4">{reference}</div>
+          <div className="lg:col-span-5 space-y-3 lg:space-y-4">{themes}</div>
+          <div className="lg:col-span-3 space-y-3 lg:space-y-4">
+            {mediaTypeBlock}
+            {fineTune}
+          </div>
+        </div>
+        {sharedTrailing}
+      </motion.section>
+    )
+  }
+
+  // DEFAULT — current vertical stack
+  return (
+    <motion.section
+      key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="space-y-3 lg:space-y-4"
+    >
+      {reference}
+      {mediaTypeBlock}
+      {themes}
+      {fineTune}
+      {sharedTrailing}
+    </motion.section>
+  )
+}
+
+// Floating widget shown only when ?layout is present. Lets the user
+// click between layouts without retyping URLs. Stripped once a winner
+// is chosen (alongside FormLayoutDispatcher's variant branches).
+function LayoutSwitcher({ current }) {
+  const variants = [
+    { id: 'current',  label: '1. Current (vertical stack)' },
+    { id: 'twocol',   label: '2. Two-column workspace' },
+    { id: 'hero',     label: '3. Hero + sidebar' },
+    { id: 'threecol', label: '4. Three-column command center' },
+  ]
+  return (
+    <div className="fixed bottom-4 right-4 z-50 p-3 rounded-2xl bg-neutral-900/90 backdrop-blur border border-brand/30 shadow-xl shadow-black/50 text-xs space-y-1.5 max-w-[260px]">
+      <div className="text-[10px] tracking-[0.2em] uppercase text-brand font-bold">
+        Layout preview
+      </div>
+      {variants.map((v) => (
+        <a
+          key={v.id}
+          href={`?layout=${v.id}`}
+          className={`block px-2 py-1 rounded-md transition ${
+            current === v.id
+              ? 'bg-brand/20 text-brand'
+              : 'text-neutral-400 hover:bg-white/5 hover:text-white/80'
+          }`}
+        >
+          {v.label}
+        </a>
+      ))}
+      <a href="?" className="block mt-2 text-[10px] text-neutral-500 hover:text-brand">
+        ✕ close switcher
+      </a>
+    </div>
+  )
+}
 
 // Unified Mood + Occasion panel. Replaces two separate numbered cards with
 // one continuous surface so the "set the vibe" decision feels like a single

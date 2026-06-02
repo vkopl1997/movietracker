@@ -1334,6 +1334,11 @@ function FormLayoutDispatcher({ layout, formState, reference, mediaTypeBlock, th
 // click between layouts without retyping URLs. Stripped once a winner
 // is chosen (alongside FormLayoutDispatcher's variant branches).
 function LayoutSwitcher({ current }) {
+  // Use setSearchParams (client-side URL update) instead of <a href>
+  // (full page navigation). The latter was getting intercepted by the
+  // service worker, serving cached HTML/JS — so the variant param changed
+  // in the URL but the underlying code never actually swapped.
+  const [, setSearchParams] = useSearchParams()
   const variants = [
     { id: 'current',   label: '1. Current (vertical stack)' },
     { id: 'twocol',    label: '2. Two-column workspace' },
@@ -1349,21 +1354,24 @@ function LayoutSwitcher({ current }) {
         Layout preview
       </div>
       {variants.map((v) => (
-        <a
+        <button
           key={v.id}
-          href={`?layout=${v.id}`}
-          className={`block px-2 py-1 rounded-md transition ${
+          onClick={() => setSearchParams({ layout: v.id })}
+          className={`block w-full text-left px-2 py-1 rounded-md transition ${
             current === v.id
               ? 'bg-brand/20 text-brand'
               : 'text-neutral-400 hover:bg-white/5 hover:text-white/80'
           }`}
         >
           {v.label}
-        </a>
+        </button>
       ))}
-      <a href="?" className="block mt-2 text-[10px] text-neutral-500 hover:text-brand">
+      <button
+        onClick={() => setSearchParams({})}
+        className="block w-full text-left mt-2 text-[10px] text-neutral-500 hover:text-brand"
+      >
         ✕ close switcher
-      </a>
+      </button>
     </div>
   )
 }

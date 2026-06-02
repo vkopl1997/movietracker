@@ -11,7 +11,7 @@
 // We update the version with each deploy via a sed step (see scripts).
 // ──────────────────────────────────────────────────────────────────────
 
-const CACHE_VERSION = 'v3'
+const CACHE_VERSION = 'v4'
 const SHELL_CACHE   = `mt-shell-${CACHE_VERSION}`
 const IMAGE_CACHE   = `mt-images-${CACHE_VERSION}`
 const API_CACHE     = `mt-api-${CACHE_VERSION}`

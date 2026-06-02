@@ -1053,29 +1053,55 @@ function PickPage() {
 
   return (
     <main className={`mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5 ${
-      layoutVariant === 'threecol' ? 'max-w-7xl' :
+      layoutVariant === 'threecol' || layoutVariant === 'split' ? 'max-w-7xl' :
       layoutVariant === 'twocol' || layoutVariant === 'hero' ? 'max-w-6xl' :
       'max-w-4xl'
     }`}>
-      <header className="text-center mb-3 lg:mb-4">
-        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
-          <span className="h-px w-6 sm:w-8 bg-brand/40" />
-          AI PICK
-          <span className="h-px w-6 sm:w-8 bg-brand/40" />
-        </div>
-        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
-          What should I watch?
-        </h1>
-        <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
-          Start with a movie you love — or skip and pick by theme.
-        </p>
-      </header>
+      {/* In split mode the heading lives inside the left rail of
+          SplitResultsView, so the page-level header is redundant. */}
+      {!(layoutVariant === 'split' && hasPicked) && (
+        <header className="text-center mb-3 lg:mb-4">
+          <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
+            <span className="h-px w-6 sm:w-8 bg-brand/40" />
+            AI PICK
+            <span className="h-px w-6 sm:w-8 bg-brand/40" />
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
+            What should I watch?
+          </h1>
+          <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
+            Start with a movie you love — or skip and pick by theme.
+          </p>
+        </header>
+      )}
 
       {/* LAYOUT preview switcher — only visible when ?layout is in the URL */}
       {searchParams.get('layout') && <LayoutSwitcher current={layoutVariant} />}
 
       <AnimatePresence mode="wait">
         {hasPicked ? (
+          layoutVariant === 'split' ? (
+            <SplitResultsView
+              key="results-split"
+              picks={picks}
+              loading={loading}
+              round={round}
+              moods={moods}
+              occasion={occasion}
+              occasionLabel={OCCASIONS.find((o) => o.value === occasion)?.label}
+              similarTo={similarTo}
+              pickedThemes={pickedThemes}
+              mediaType={mediaType}
+              onChangeMediaType={changeMediaType}
+              seenCount={seenIds.size}
+              tasteProfile={tasteProfile}
+              topScore={topScore}
+              topGenres={topGenres}
+              onPickAgain={generate}
+              onReset={reset}
+              onDismiss={dismissPick}
+            />
+          ) : (
           <ResultsView
             key="results"
             picks={picks}
@@ -1095,7 +1121,7 @@ function PickPage() {
             onPickAgain={generate}
             onReset={reset}
             onDismiss={dismissPick}
-          />
+          />)
         ) : loading ? (
           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-16">
             <PickLoader />
@@ -1347,6 +1373,7 @@ function LayoutSwitcher({ current }) {
     { id: 'spotlight', label: '★ Spotlight (no panels)' },
     { id: 'canvas',    label: '★ Canvas (cinematic backdrop)' },
     { id: 'live',      label: '★ Live picker (sidebar + results)' },
+    { id: 'split',     label: '★ Split results (30/70 grid)' },
   ]
   return (
     <div className="fixed bottom-4 right-4 z-50 p-3 rounded-2xl bg-neutral-900/90 backdrop-blur border border-brand/30 shadow-xl shadow-black/50 text-xs space-y-1.5 max-w-[260px]">
@@ -1749,13 +1776,147 @@ function LiveForm({ state }) {
 }
 
 // Unified Mood + Occasion panel. Replaces two separate numbered cards with
-// one continuous surface so the "set the vibe" decision feels like a single
-// thought instead of a stepped form. Live elements:
-//   • pulsing brand-gold "live" dot in the header
-//   • two ambient drifting glow blobs in the background (slow, ~14s loops)
-//   • a 2-dot progress strip on the right of the header
-//   • a real-time tagline in the divider that updates as you choose
-//     ("tonight: intense + first date") with smooth in/out transitions
+// ─────────────────────────────────────────────────────────────────────
+// SplitResultsView — 30/70 grid like the CSS Grid Generator screenshot.
+// LEFT column (3fr): heading, subtitle, context, taste line, Pick again
+// + Start over actions. RIGHT column (7fr): the colour-graded score bar
+// across the top, then the three pick cards in a row beneath.
+// ─────────────────────────────────────────────────────────────────────
+function SplitResultsView({ picks, loading, round, moods, occasion, occasionLabel, similarTo, pickedThemes, mediaType, onChangeMediaType, seenCount, tasteProfile, topScore, topGenres, onPickAgain, onReset, onDismiss }) {
+  const topGenreLabels = (topGenres || []).slice(0, 3).map((id) => GENRE_NAMES[id]).filter(Boolean)
+  // Reuse ResultsView's smart header construction — same rules
+  const themeCount = pickedThemes?.size || 0
+  const themesArr  = themeCount > 0 ? [...pickedThemes] : []
+  function ContextHeader() {
+    if (moods.length > 0) return <>For a <strong>{moods.join(' + ')}</strong> watch{occasionLabel ? ` (${occasionLabel.toLowerCase()})` : ''}.</>
+    if (similarTo)        return <>Picks like <strong>{similarTo.title}</strong>{occasionLabel ? ` for ${occasionLabel.toLowerCase()}` : ''}.</>
+    if (themeCount > 0) {
+      const shown = themesArr.slice(0, 3).map((t) => `#${t.replace(/ /g, '-')}`).join(' ')
+      return <>Picks tagged <strong>{shown}</strong>{themeCount > 3 ? ` +${themeCount - 3} more` : ''}{occasionLabel ? ` for ${occasionLabel.toLowerCase()}` : ''}.</>
+    }
+    if (occasionLabel) return <>Picks for <strong>{occasionLabel.toLowerCase()}</strong>.</>
+    return <>Your picks tonight.</>
+  }
+
+  return (
+    <motion.section
+      key="results-split"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -16 }}
+      transition={{ duration: 0.3 }}
+      className="grid grid-cols-1 md:grid-cols-[3fr_7fr] gap-6 lg:gap-8 items-start"
+    >
+      {/* ─── LEFT (3fr) — title, context, actions ────────────────────── */}
+      <aside className="md:sticky md:top-6 self-start space-y-4">
+        <div className="text-[10px] tracking-[0.3em] uppercase text-brand font-bold flex items-center gap-2">
+          <span className="h-px w-6 bg-brand/40" />
+          AI PICK
+        </div>
+        <h1 className="font-display text-3xl sm:text-4xl tracking-[0.02em] leading-tight">
+          What should I watch?
+        </h1>
+        <p className="text-sm text-neutral-500 dark:text-white/60">
+          Start with a movie you love — or skip and pick by theme.
+        </p>
+
+        <p className="text-xs text-neutral-500 dark:text-white/50 pt-1 italic">
+          <ContextHeader />
+        </p>
+
+        {tasteProfile && (
+          <p className="text-[11px] text-neutral-400 dark:text-white/40">
+            Tuned to your taste · {tasteProfile.totalFavs} favorites
+            {topGenreLabels.length > 0 && <> · weights <span className="text-brand">{topGenreLabels.join(', ')}</span></>}
+          </p>
+        )}
+
+        {/* Media-type switcher — same compact pills as ResultsView */}
+        <ResultsMediaTypeSwitcher mediaType={mediaType} onChange={onChangeMediaType} disabled={loading} />
+
+        {/* Actions */}
+        <div className="space-y-2.5 pt-2">
+          <motion.button
+            onClick={onPickAgain}
+            disabled={loading}
+            whileHover={loading ? {} : { scale: 1.02 }}
+            whileTap={loading ? {} : { scale: 0.97 }}
+            className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          >
+            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+          </motion.button>
+          <button
+            onClick={onReset}
+            disabled={loading}
+            className="block w-full text-center text-base text-neutral-500 dark:text-white/45 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50"
+          >
+            or start over with a different mood
+          </button>
+        </div>
+
+        {seenCount > 0 && (
+          <p className="text-[10px] text-neutral-400 dark:text-white/30">
+            {seenCount} {seenCount === 1 ? 'title' : 'titles'} excluded from this session.
+          </p>
+        )}
+      </aside>
+
+      {/* ─── RIGHT (7fr) — score bar above + cards below ─────────────── */}
+      <div className="space-y-4">
+        {topScore != null && (
+          <div className="rounded-2xl bg-white/[0.03] border border-white/10 px-4 py-3">
+            <ScoreBar score={topScore} />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-h-[280px] sm:items-center">
+          <AnimatePresence mode="wait">
+            {picks?.length === 0 ? (
+              <ExhaustedState key="exhausted" className="sm:col-span-3" />
+            ) : picks?.length > 0 ? (
+              picks.map((pick, idx) => (
+                <motion.div
+                  key={`pick-split-${round}-${pick.id}`}
+                  initial={{ opacity: 0, scale: 0.94 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: idx * 0.05 }}
+                  className="text-center relative group will-change-transform"
+                >
+                  <button
+                    onClick={() => onDismiss(pick)}
+                    title="Show me less like this"
+                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-sm border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
+                  >
+                    ×
+                  </button>
+                  <MediaCard {...pick} />
+                  <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    transition={{ delay: 0.18 + idx * 0.05, duration: 0.22 }}
+                    className="mt-1.5 flex flex-wrap justify-center gap-1 px-0.5"
+                  >
+                    {tagsFor(pick, moods, occasion).map((tag) => (
+                      <span key={tag} className="text-[9px] sm:text-[10px] font-medium text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                        #{tag}
+                      </span>
+                    ))}
+                  </motion.div>
+                  <motion.p
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    transition={{ delay: 0.26 + idx * 0.05, duration: 0.24 }}
+                    className="mt-1 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
+                  >
+                    {reasonFor(pick, moods, occasionLabel)}
+                  </motion.p>
+                </motion.div>
+              ))
+            ) : null}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
 function VibePanel({ moods, occasion, toggleMood, setOccasion }) {
   // Compact label for the live preview: first word of each mood label.
   const moodWords = MOODS

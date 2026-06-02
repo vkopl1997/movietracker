@@ -895,10 +895,32 @@ function PickPage() {
       // something snuck into the pool via a path that didn't honor it (a future
       // code change, an unexpected TMDb response, anything), it gets dropped
       // here. Belt + suspenders on the user's "Movies only" / "TV only" choice.
+      // baseFilter.withoutGenres only reaches the discover pool via TMDb's
+      // `without_genres` param. The favorites-recs and similarTo-recs paths
+      // come from TMDb's /recommendations endpoint which doesn't accept any
+      // genre filter, so excluded genres can ride into the pool from there.
+      // Apply the same exclusion CLIENT-SIDE here so "friends over" really
+      // means no drama, "Avoid Horror" really hides horror, etc. — across
+      // every pool source, not just discover.
+      // TV items use TV genre ids, movie items use movie genre ids — same
+      // exclusion list needs translating for the TV side.
+      const withoutSetMovie = new Set(baseFilter.withoutGenres || [])
+      const withoutSetTv    = new Set(moviesToTvGenres(baseFilter.withoutGenres || []))
       const dedupe = new Set()
       pool = pool
         .filter((m) => (m.rating ?? 0) >= HIGH_RATING_FLOOR)
         .filter((m) => mediaType === 'both' || m.mediaType === mediaType)
+        // Hard genre-exclude across ALL sources. Was previously only
+        // applied via discover; this catches the favorites-recs / similar-to
+        // leak (the "drama into friends-over" bug).
+        .filter((m) => {
+          const set = m.mediaType === 'tv' ? withoutSetTv : withoutSetMovie
+          if (set.size === 0) return true
+          for (const g of (m.genreIds || [])) {
+            if (set.has(g)) return false
+          }
+          return true
+        })
         // Never recommend the reference itself back — Avatar's keywords +
         // genres make Avatar a perfect match against the discover query, so
         // without this it ends up in its own picks.

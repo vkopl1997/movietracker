@@ -365,11 +365,30 @@ function scoreCandidate(movie, ctx) {
     score += Math.min(17, Math.max(0, (movie.rating - 7) * 8.5))
   }
 
-  // (5) Make-it-feel-like boost — PROMOTED to the largest single bonus.
-  // Explicit (user gave a reference movie or themes): +35
-  // Inferred (favorites' recommendations): +17
+  // (5) Make-it-feel-like boost — reduced from +35 explicit / +17 inferred
+  // because the previous gap made TV recommendations from /recommendations
+  // (which get the boost) systematically outscore movies from the
+  // keyword-bridged discover pool (which used to NOT get it). Now ALL
+  // ref-related candidates (direct recs AND keyword-themed discover) are
+  // marked in boostedIds, so the boost is broadly applied and the gap
+  // between TV and movies in Both mode shrinks to genre/quality alone.
   if (ctx.boostedIds?.has(movie.id)) {
-    score += ctx.explicitMode ? 35 : 17
+    score += ctx.explicitMode ? 25 : 12
+  }
+
+  // (5b) Title-direct relative — a sequel / prequel / spinoff. If the
+  // candidate's title contains the reference's title (or vice versa for
+  // longer titles), it's almost certainly the same franchise. This makes
+  // "El Camino: A Breaking Bad Movie" surface to the top when the user
+  // picks Breaking Bad and asks for Movies. Cheap heuristic, no extra
+  // API call, catches the obvious cases cleanly.
+  if (ctx.similarTo?.title && movie.title) {
+    const refLower  = ctx.similarTo.title.toLowerCase().trim()
+    const candLower = movie.title.toLowerCase().trim()
+    const directRelative =
+      (refLower.length >= 4 && candLower.includes(refLower)) ||
+      (candLower.length >= 4 && refLower.includes(candLower) && refLower !== candLower)
+    if (directRelative) score += 30
   }
 
   // (6) Penalty: down-weighted genres — capped at -20 total.
@@ -850,7 +869,18 @@ function PickPage() {
         )
       }
       const discoverResults = await Promise.all(discoverPromises)
-      for (const arr of discoverResults) pool.push(...arr)
+      for (const arr of discoverResults) {
+        pool.push(...arr)
+        // When a reference is set, the discover query was enriched with that
+        // ref's keywords (OR mode). So EVERY result that came back shares at
+        // least one keyword with the reference — they're ref-themed. Mark
+        // them as boosted so the scoring treats them on equal footing with
+        // direct TMDb recommendations. This is what closes the gap that made
+        // TV always outscore movies in Both mode.
+        if (similarTo?.id) {
+          for (const r of arr) boostedIds.add(r.id)
+        }
+      }
 
       // Dedupe + skip seen/watched + ENFORCE rating floor client-side
       // (defense-in-depth — sometimes TMDb returns just-below-threshold items).
@@ -919,6 +949,7 @@ function PickPage() {
         downGenres,
         boostedIds,
         explicitMode,
+        similarTo,                 // for the title-direct-relative bonus
       }
       const scored = pool
         .map((m) => ({ movie: m, score: scoreCandidate(m, ctx) }))
@@ -927,13 +958,25 @@ function PickPage() {
       // Diversify primary genre — avoid 3 picks that are all the same genre.
       // We take the top-scoring movie unconditionally, then prefer movies
       // whose primary genre we haven't already used.
+      // ALSO: in Both mode, enforce mediaType variety — don't return 3 TV
+      // shows if there's a movie candidate available (or vice versa).
       const finalPicks = []
       const usedPrimary = new Set()
+      const typeCount = { movie: 0, tv: 0 }
+      const poolHasBothTypes =
+        mediaType === 'both' &&
+        scored.some((s) => s.movie.mediaType === 'movie') &&
+        scored.some((s) => s.movie.mediaType === 'tv')
       for (const s of scored) {
         if (finalPicks.length >= 3) break
         const primary = s.movie.genreIds?.[0]
         if (finalPicks.length > 0 && primary && usedPrimary.has(primary)) continue
+        // In Both mode: never take a 3rd of the same type if the other type
+        // still has candidates left to find. Ensures at least 1 of each.
+        const candType = s.movie.mediaType
+        if (poolHasBothTypes && typeCount[candType] >= 2) continue
         finalPicks.push(s.movie)
+        typeCount[candType] = (typeCount[candType] || 0) + 1
         if (primary) usedPrimary.add(primary)
       }
       // If diversification left us short (rare — small pool), fill from score order.

@@ -1110,7 +1110,26 @@ function PickPage() {
         ) : (
           <FormLayoutDispatcher
             layout={layoutVariant}
-            // sections — each rendered inside the chosen grid layout
+            // Bundle of state for the bold variants (spotlight/canvas/live)
+            // that render custom JSX instead of arranging the section panels.
+            formState={{
+              similarTo, setSimilarTo,
+              similarQuery, setSimilarQuery,
+              similarResults, similarOpen, setSimilarOpen,
+              userFavorites: items.filter((i) => i.isFavorite && i.mediaType === 'movie'),
+              mediaType, setMediaType,
+              moods, occasion, toggleMood, setOccasion,
+              pickedThemes, toggleTheme,
+              era, setEra, length, setLength,
+              avoidIds, setAvoidIds, languages, setLanguages,
+              pace, setPace, prompt, setPrompt,
+              advancedOpen, setAdvancedOpen,
+              advancedSummary,
+              tasteProfile, topGenres,
+              canGenerate, generate, error,
+            }}
+            // sections — each rendered inside the chosen grid layout (used by
+            // the original variants: current/twocol/hero/threecol).
             reference={
               <ReferenceSection
                 similarTo={similarTo} setSimilarTo={setSimilarTo}
@@ -1216,7 +1235,13 @@ function PickPage() {
 // the production vertical stack. Variants try to fit more on a laptop
 // without scrolling, each with a different feel.
 // ─────────────────────────────────────────────────────────────────────
-function FormLayoutDispatcher({ layout, reference, mediaTypeBlock, themes, fineTune, taste, error, cta }) {
+function FormLayoutDispatcher({ layout, formState, reference, mediaTypeBlock, themes, fineTune, taste, error, cta }) {
+  // Bold variants — render their own JSX from formState. They DON'T reuse
+  // the section panels; the whole point is a different visual paradigm.
+  if (layout === 'spotlight') return <SpotlightForm state={formState} />
+  if (layout === 'canvas')    return <CanvasForm state={formState} />
+  if (layout === 'live')      return <LiveForm state={formState} />
+
   const sharedTrailing = (
     <>
       {taste}
@@ -1310,10 +1335,13 @@ function FormLayoutDispatcher({ layout, reference, mediaTypeBlock, themes, fineT
 // is chosen (alongside FormLayoutDispatcher's variant branches).
 function LayoutSwitcher({ current }) {
   const variants = [
-    { id: 'current',  label: '1. Current (vertical stack)' },
-    { id: 'twocol',   label: '2. Two-column workspace' },
-    { id: 'hero',     label: '3. Hero + sidebar' },
-    { id: 'threecol', label: '4. Three-column command center' },
+    { id: 'current',   label: '1. Current (vertical stack)' },
+    { id: 'twocol',    label: '2. Two-column workspace' },
+    { id: 'hero',      label: '3. Hero + sidebar' },
+    { id: 'threecol',  label: '4. Three-column command center' },
+    { id: 'spotlight', label: '★ Spotlight (no panels)' },
+    { id: 'canvas',    label: '★ Canvas (cinematic backdrop)' },
+    { id: 'live',      label: '★ Live picker (sidebar + results)' },
   ]
   return (
     <div className="fixed bottom-4 right-4 z-50 p-3 rounded-2xl bg-neutral-900/90 backdrop-blur border border-brand/30 shadow-xl shadow-black/50 text-xs space-y-1.5 max-w-[260px]">
@@ -1337,6 +1365,378 @@ function LayoutSwitcher({ current }) {
         ✕ close switcher
       </a>
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SPOTLIGHT FORM — no panels at all. One giant input centered on the
+// page, selections as floating chips around it, fine-tune hidden behind
+// a single toggle. Reads as a command palette / AI search bar.
+// ─────────────────────────────────────────────────────────────────────
+function SpotlightForm({ state }) {
+  const s = state
+  const [showFilters, setShowFilters] = useState(false)
+  const allChips = [
+    s.similarTo && { kind: 'ref', label: s.similarTo.title, onRemove: () => s.setSimilarTo(null) },
+    ...[...s.pickedThemes].map((t) => ({ kind: 'theme', label: `#${t.replace(/ /g, '-')}`, onRemove: () => s.toggleTheme(t) })),
+  ].filter(Boolean)
+
+  return (
+    <motion.section
+      key="form-spotlight"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="min-h-[55vh] flex flex-col items-center justify-center gap-6 py-4"
+    >
+      {/* Media type pills */}
+      <div className="inline-flex gap-1 p-1 rounded-full bg-white/5 border border-white/10">
+        {['both', 'movie', 'tv'].map((t) => (
+          <button
+            key={t}
+            onClick={() => s.setMediaType(t)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+              s.mediaType === t
+                ? 'bg-brand/20 text-brand'
+                : 'text-neutral-500 dark:text-white/50 hover:text-white/80'
+            }`}
+          >
+            {t === 'both' ? 'Both' : t === 'movie' ? 'Movies' : 'TV'}
+          </button>
+        ))}
+      </div>
+
+      {/* The spotlight — giant search input */}
+      <div className="w-full max-w-2xl relative">
+        {s.similarTo ? (
+          <div className="w-full px-6 py-5 text-lg sm:text-xl bg-brand/10 border border-brand/30 rounded-2xl text-brand font-semibold flex items-center justify-between">
+            <span>🎬 {s.similarTo.title}</span>
+            <button onClick={() => { s.setSimilarTo(null); s.setSimilarQuery('') }} className="text-brand/70 hover:text-brand text-2xl leading-none">×</button>
+          </div>
+        ) : (
+          <input
+            type="text"
+            value={s.similarQuery}
+            onChange={(e) => s.setSimilarQuery(e.target.value)}
+            onFocus={() => s.setSimilarOpen(true)}
+            onBlur={() => setTimeout(() => s.setSimilarOpen(false), 150)}
+            placeholder="What should we watch tonight?"
+            className="w-full px-6 py-5 text-lg sm:text-xl bg-white/[0.04] border border-white/15 rounded-2xl text-white placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.08] transition"
+          />
+        )}
+        {s.similarOpen && s.similarResults.length > 0 && !s.similarTo && (
+          <div className="absolute z-40 mt-2 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
+            {s.similarResults.map((m) => (
+              <button
+                key={`${m.mediaType}-${m.id}`}
+                onMouseDown={() => { s.setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); s.setSimilarQuery('') }}
+                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left"
+              >
+                {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded shrink-0" />}
+                <span className="text-sm flex-1 truncate">{m.title}</span>
+                {m.mediaType === 'tv' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">TV</span>}
+                {m.year && <span className="text-xs text-white/50">{m.year}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Selected chips floating beneath the input */}
+      {allChips.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
+          {allChips.map((c, i) => (
+            <motion.div
+              key={`${c.kind}-${i}`}
+              initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand/15 border border-brand/40 text-brand text-sm font-semibold"
+            >
+              {c.label}
+              <button onClick={c.onRemove} className="text-brand/60 hover:text-brand text-base leading-none">×</button>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Settings + Find row */}
+      <div className="flex flex-col items-center gap-3 w-full max-w-md">
+        <button onClick={() => setShowFilters((v) => !v)} className="text-xs text-neutral-500 hover:text-brand transition flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          {showFilters ? 'Hide' : 'Themes + filters'}
+        </button>
+        <button
+          onClick={s.generate}
+          disabled={!s.canGenerate}
+          className="w-full px-8 py-4 rounded-2xl text-base font-semibold bg-gradient-to-br from-white/[0.06] via-white/[0.03] to-transparent hover:from-brand/15 hover:to-brand/5 text-brand border border-white/15 hover:border-brand/40 disabled:opacity-30 disabled:cursor-not-allowed transition"
+        >
+          Find me something
+        </button>
+      </div>
+
+      {/* Collapsible: themes + fine-tune */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="w-full max-w-2xl overflow-hidden"
+          >
+            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-4">
+              <ThemeChips moods={s.moods} occasion={s.occasion} similarTo={s.similarTo} pickedThemes={s.pickedThemes} onToggle={s.toggleTheme} />
+              <FineTuneToggle open={s.advancedOpen} summary={s.advancedSummary} onToggle={() => s.setAdvancedOpen((v) => !v)}>
+                <FineTune
+                  moods={s.moods} occasion={s.occasion} toggleMood={s.toggleMood} setOccasion={s.setOccasion}
+                  era={s.era} setEra={s.setEra} length={s.length} setLength={s.setLength}
+                  avoidIds={s.avoidIds} setAvoidIds={s.setAvoidIds}
+                  languages={s.languages} setLanguages={s.setLanguages}
+                  pace={s.pace} setPace={s.setPace}
+                  prompt={s.prompt} setPrompt={s.setPrompt}
+                />
+              </FineTuneToggle>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {s.error && <p className="text-sm text-red-400">{s.error}</p>}
+    </motion.section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// CANVAS FORM — full-bleed brand-gold gradient backdrop with strong
+// dark overlay; controls float on top with backdrop-blur glass. Themes
+// scroll horizontally. Cinematic, premium-feeling.
+// ─────────────────────────────────────────────────────────────────────
+function CanvasForm({ state }) {
+  const s = state
+  return (
+    <motion.section
+      key="form-canvas"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="relative -mx-4 sm:-mx-6 px-4 sm:px-6 py-8 sm:py-10 overflow-hidden min-h-[70vh]"
+    >
+      {/* Animated brand backdrop — radial + drifting glow blobs */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand/[0.18] via-brand/[0.05] to-transparent" />
+        <motion.div
+          className="absolute -top-32 left-1/4 w-[40rem] h-[40rem] rounded-full bg-brand/[0.15] blur-3xl"
+          animate={{ x: [0, 40, 0], y: [0, 30, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-0 right-0 w-[30rem] h-[30rem] rounded-full bg-brand/[0.08] blur-3xl"
+          animate={{ x: [0, -30, 0], y: [0, -20, 0] }}
+          transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/50" />
+      </div>
+
+      <div className="relative max-w-3xl mx-auto space-y-5">
+        {/* Reference — wide glass card */}
+        <div className="p-5 sm:p-6 rounded-3xl bg-black/30 backdrop-blur-xl border border-white/20 shadow-2xl">
+          <div className="text-[10px] tracking-[0.3em] uppercase text-brand mb-3 font-bold">Most important</div>
+          {s.similarTo ? (
+            <div className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-brand/20 border border-brand/50 text-sm font-semibold text-brand">
+              🎬 {s.similarTo.title}
+              <button onClick={() => { s.setSimilarTo(null); s.setSimilarQuery('') }} className="ml-1 text-brand/70 hover:text-brand text-lg leading-none">×</button>
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                type="text"
+                value={s.similarQuery}
+                onChange={(e) => s.setSimilarQuery(e.target.value)}
+                onFocus={() => s.setSimilarOpen(true)}
+                onBlur={() => setTimeout(() => s.setSimilarOpen(false), 150)}
+                placeholder="Pick a movie you love..."
+                className="w-full px-5 py-3 rounded-2xl text-base bg-white/10 backdrop-blur border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-brand"
+              />
+              {s.similarOpen && s.similarResults.length > 0 && !s.similarTo && (
+                <div className="absolute z-40 mt-2 w-full rounded-2xl bg-black/80 backdrop-blur-xl border border-white/20 shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
+                  {s.similarResults.map((m) => (
+                    <button
+                      key={`${m.mediaType}-${m.id}`}
+                      onMouseDown={() => { s.setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); s.setSimilarQuery('') }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 text-left"
+                    >
+                      {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded shrink-0" />}
+                      <span className="text-sm flex-1 truncate">{m.title}</span>
+                      {m.mediaType === 'tv' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">TV</span>}
+                      {m.year && <span className="text-xs text-white/50">{m.year}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Media type — segmented bar on glass */}
+        <div className="flex justify-center">
+          <div className="inline-flex gap-1 p-1 rounded-full bg-black/40 backdrop-blur-xl border border-white/20">
+            {['both', 'movie', 'tv'].map((t) => (
+              <button
+                key={t}
+                onClick={() => s.setMediaType(t)}
+                className={`px-5 py-1.5 rounded-full text-sm font-medium transition ${
+                  s.mediaType === t ? 'bg-brand text-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                {t === 'both' ? 'Both' : t === 'movie' ? 'Movies' : 'TV'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Themes — glass card */}
+        <div className="p-5 sm:p-6 rounded-3xl bg-black/30 backdrop-blur-xl border border-white/20 shadow-2xl">
+          <ThemeChips moods={s.moods} occasion={s.occasion} similarTo={s.similarTo} pickedThemes={s.pickedThemes} onToggle={s.toggleTheme} />
+        </div>
+
+        {/* Fine-tune — glass toggle */}
+        <div className="rounded-3xl bg-black/30 backdrop-blur-xl border border-white/20 shadow-2xl overflow-hidden">
+          <FineTuneToggle open={s.advancedOpen} summary={s.advancedSummary} onToggle={() => s.setAdvancedOpen((v) => !v)}>
+            <FineTune
+              moods={s.moods} occasion={s.occasion} toggleMood={s.toggleMood} setOccasion={s.setOccasion}
+              era={s.era} setEra={s.setEra} length={s.length} setLength={s.setLength}
+              avoidIds={s.avoidIds} setAvoidIds={s.setAvoidIds}
+              languages={s.languages} setLanguages={s.setLanguages}
+              pace={s.pace} setPace={s.setPace}
+              prompt={s.prompt} setPrompt={s.setPrompt}
+            />
+          </FineTuneToggle>
+        </div>
+
+        {s.error && <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 text-sm text-center">{s.error}</div>}
+
+        {/* Floating CTA */}
+        <div className="text-center pt-2">
+          <button
+            onClick={s.generate}
+            disabled={!s.canGenerate}
+            className="px-10 py-3.5 rounded-2xl text-base font-semibold bg-brand/20 backdrop-blur-xl text-brand border-2 border-brand/50 hover:bg-brand/30 hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition shadow-2xl"
+          >
+            Find me something
+          </button>
+        </div>
+      </div>
+    </motion.section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// LIVE FORM — sticky sidebar with the form on the left, results pane
+// on the right (placeholder until first generate). No more form/results
+// modal-style switch. Feels like a real product surface.
+// ─────────────────────────────────────────────────────────────────────
+function LiveForm({ state }) {
+  const s = state
+  return (
+    <motion.section
+      key="form-live"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
+        {/* SIDEBAR — sticky on desktop */}
+        <aside className="md:col-span-4 md:sticky md:top-4 self-start space-y-3">
+          {/* Media type */}
+          <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
+            <div className="text-[10px] tracking-[0.2em] uppercase text-brand font-bold mb-2">Show me</div>
+            <div className="flex flex-col gap-1.5">
+              {['both', 'movie', 'tv'].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => s.setMediaType(t)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
+                    s.mediaType === t ? 'bg-brand/15 text-brand border border-brand/30' : 'text-white/60 hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  <span className={`w-3 h-3 rounded-full ${s.mediaType === t ? 'bg-brand' : 'border-2 border-white/30'}`} />
+                  {t === 'both' ? 'Both' : t === 'movie' ? 'Movies' : 'TV series'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Reference */}
+          <div className="p-4 rounded-2xl bg-brand/[0.08] border border-brand/30">
+            <div className="text-[10px] tracking-[0.2em] uppercase text-brand font-bold mb-2">Reference</div>
+            {s.similarTo ? (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand/20 border border-brand/40 text-sm text-brand">
+                🎬 {s.similarTo.title}
+                <button onClick={() => { s.setSimilarTo(null); s.setSimilarQuery('') }} className="text-brand/70 hover:text-brand">×</button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={s.similarQuery}
+                  onChange={(e) => s.setSimilarQuery(e.target.value)}
+                  onFocus={() => s.setSimilarOpen(true)}
+                  onBlur={() => setTimeout(() => s.setSimilarOpen(false), 150)}
+                  placeholder="e.g. Breaking Bad"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-white/[0.05] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand"
+                />
+                {s.similarOpen && s.similarResults.length > 0 && (
+                  <div className="absolute z-40 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                    {s.similarResults.map((m) => (
+                      <button
+                        key={`${m.mediaType}-${m.id}`}
+                        onMouseDown={() => { s.setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); s.setSimilarQuery('') }}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-white/5 text-left"
+                      >
+                        {m.posterUrl && <img src={m.posterUrl} alt="" className="w-6 h-9 object-cover rounded shrink-0" />}
+                        <span className="text-xs flex-1 truncate">{m.title}</span>
+                        {m.mediaType === 'tv' && <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-purple-500/30 text-purple-300">TV</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Themes — compact */}
+          <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
+            <ThemeChips moods={s.moods} occasion={s.occasion} similarTo={s.similarTo} pickedThemes={s.pickedThemes} onToggle={s.toggleTheme} />
+          </div>
+
+          {/* Fine-tune */}
+          <FineTuneToggle open={s.advancedOpen} summary={s.advancedSummary} onToggle={() => s.setAdvancedOpen((v) => !v)}>
+            <FineTune
+              moods={s.moods} occasion={s.occasion} toggleMood={s.toggleMood} setOccasion={s.setOccasion}
+              era={s.era} setEra={s.setEra} length={s.length} setLength={s.setLength}
+              avoidIds={s.avoidIds} setAvoidIds={s.setAvoidIds}
+              languages={s.languages} setLanguages={s.setLanguages}
+              pace={s.pace} setPace={s.setPace}
+              prompt={s.prompt} setPrompt={s.setPrompt}
+            />
+          </FineTuneToggle>
+
+          {/* CTA */}
+          <button
+            onClick={s.generate}
+            disabled={!s.canGenerate}
+            className="w-full py-3 rounded-2xl text-sm font-semibold bg-gradient-to-br from-brand/15 to-brand/5 hover:from-brand hover:to-brand-dark text-brand hover:text-black border border-brand/30 hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition"
+          >
+            Find me something
+          </button>
+
+          {s.error && <p className="text-xs text-red-400 text-center">{s.error}</p>}
+        </aside>
+
+        {/* RESULTS PANE — placeholder; real results show via the picks→results
+            flow elsewhere. This pane teases the layout. */}
+        <main className="md:col-span-8">
+          <div className="min-h-[60vh] rounded-2xl bg-white/[0.02] border border-dashed border-white/10 flex flex-col items-center justify-center text-center p-8 gap-3">
+            <div className="text-5xl opacity-30">🎬</div>
+            <h3 className="text-lg font-bold text-white/80">Your picks will appear here</h3>
+            <p className="text-sm text-white/40 max-w-xs">
+              Adjust filters on the left, then hit <span className="text-brand">Find me something</span> to see picks rendered in this pane.
+            </p>
+          </div>
+        </main>
+      </div>
+    </motion.section>
   )
 }
 

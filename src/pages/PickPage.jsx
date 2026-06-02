@@ -1668,8 +1668,27 @@ function MultiChips({ options, values, onToggle, max = 2 }) {
 }
 
 function FineTuneToggle({ open, summary, onToggle, children }) {
+  // Lock body scroll while the modal is open so the page underneath
+  // doesn't scroll along with it.
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [open])
+
+  // ESC closes the modal — standard a11y expectation.
+  useEffect(() => {
+    if (!open) return
+    function onKey(e) { if (e.key === 'Escape') onToggle() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onToggle])
+
   return (
-    <div>
+    <>
+      {/* The trigger button — same look as before, no chevron rotation
+          since clicking now opens a modal instead of expanding inline. */}
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-white/[0.03] to-white/[0.01] dark:from-white/[0.04] dark:to-white/[0.02] border border-white/10 hover:border-brand/40 transition text-left"
@@ -1689,24 +1708,79 @@ function FineTuneToggle({ open, summary, onToggle, children }) {
             </div>
           </div>
         </div>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} className="text-xs text-neutral-500 dark:text-white/50">▾</motion.span>
+        <span className="text-xs text-neutral-500 dark:text-white/50">↗</span>
       </button>
-      <AnimatePresence initial={false}>
+
+      {/* MODAL — centered overlay, escapes the narrow sidebar so the form
+          content has room to breathe. Click backdrop or X / press ESC to close. */}
+      <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+            onClick={(e) => { if (e.target === e.currentTarget) onToggle() }}
           >
-            <div className="mt-3 p-5 rounded-2xl space-y-5 bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10">
-              {children}
-            </div>
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" aria-hidden />
+
+            {/* Dialog */}
+            <motion.div
+              role="dialog"
+              aria-label="Filters"
+              initial={{ opacity: 0, y: 16, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.96 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl bg-neutral-950 border border-white/10 shadow-2xl shadow-black/50 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand">
+                      <line x1="3" y1="6" x2="14" y2="6"/><circle cx="18" cy="6" r="2"/>
+                      <line x1="3" y1="12" x2="8" y2="12"/><circle cx="12" cy="12" r="2"/><line x1="16" y1="12" x2="21" y2="12"/>
+                      <line x1="3" y1="18" x2="16" y2="18"/><circle cx="20" cy="18" r="2"/>
+                    </svg>
+                  </span>
+                  <div>
+                    <h2 className="text-base font-semibold">Filters</h2>
+                    <p className="text-[11px] text-neutral-400 dark:text-white/50">Vibe, languages, era, length, avoid, pace, prompt</p>
+                  </div>
+                </div>
+                <button
+                  onClick={onToggle}
+                  aria-label="Close filters"
+                  className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 flex items-center justify-center text-white/70 hover:text-white transition"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Scrollable body */}
+              <div className="px-5 sm:px-6 py-5 overflow-y-auto space-y-5 flex-1">
+                {children}
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 sm:px-6 py-3 border-t border-white/10 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  onClick={onToggle}
+                  className="px-5 py-2 rounded-xl text-sm font-semibold bg-brand text-black hover:bg-brand-light transition"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   )
 }
 

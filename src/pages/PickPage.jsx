@@ -12,7 +12,6 @@
 //   9. Pace slider             — slow burn ←→ fast-paced
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
 
 // Always enforce at least this TMDb rating, even when the strict filter is
 // too restrictive and we have to widen other constraints.
@@ -407,11 +406,6 @@ function PickPage() {
   usePageTitle('What should I watch?')
   const { items } = useFavorites()
   const { user } = useAuth()
-  // Temporary URL-driven layout switcher. /pick?layout=<name> picks one of
-  // current / twocol / hero / threecol so the user can compare them live.
-  // Removed once a winner is chosen.
-  const [searchParams] = useSearchParams()
-  const layoutVariant = searchParams.get('layout') || 'current'
 
   // ── Required state ────────────────────────────────────────────────
   const [moods, setMoods]       = useState([])               // [#5] multi-select
@@ -1052,56 +1046,23 @@ function PickPage() {
   }, [moods, occasion, era, length, avoidIds, languages, prompt, pace])
 
   return (
-    <main className={`mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5 ${
-      layoutVariant === 'threecol' || layoutVariant === 'split' ? 'max-w-7xl' :
-      layoutVariant === 'twocol' || layoutVariant === 'hero' ? 'max-w-6xl' :
-      'max-w-4xl'
-    }`}>
-      {/* In split mode the heading lives inside the left rail of
-          SplitResultsView, so the page-level header is redundant. */}
-      {!(layoutVariant === 'split' && hasPicked) && (
-        <header className="text-center mb-3 lg:mb-4">
-          <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
-            <span className="h-px w-6 sm:w-8 bg-brand/40" />
-            AI PICK
-            <span className="h-px w-6 sm:w-8 bg-brand/40" />
-          </div>
-          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
-            What should I watch?
-          </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
-            Start with a movie you love — or skip and pick by theme.
-          </p>
-        </header>
-      )}
-
-      {/* LAYOUT preview switcher — only visible when ?layout is in the URL */}
-      {searchParams.get('layout') && <LayoutSwitcher current={layoutVariant} />}
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5">
+      <header className="text-center mb-3 lg:mb-4">
+        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
+          <span className="h-px w-6 sm:w-8 bg-brand/40" />
+          AI PICK
+          <span className="h-px w-6 sm:w-8 bg-brand/40" />
+        </div>
+        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
+          What should I watch?
+        </h1>
+        <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
+          Start with a movie you love — or skip and pick by theme.
+        </p>
+      </header>
 
       <AnimatePresence mode="wait">
         {hasPicked ? (
-          layoutVariant === 'split' ? (
-            <SplitResultsView
-              key="results-split"
-              picks={picks}
-              loading={loading}
-              round={round}
-              moods={moods}
-              occasion={occasion}
-              occasionLabel={OCCASIONS.find((o) => o.value === occasion)?.label}
-              similarTo={similarTo}
-              pickedThemes={pickedThemes}
-              mediaType={mediaType}
-              onChangeMediaType={changeMediaType}
-              seenCount={seenIds.size}
-              tasteProfile={tasteProfile}
-              topScore={topScore}
-              topGenres={topGenres}
-              onPickAgain={generate}
-              onReset={reset}
-              onDismiss={dismissPick}
-            />
-          ) : (
           <ResultsView
             key="results"
             picks={picks}
@@ -1121,7 +1082,7 @@ function PickPage() {
             onPickAgain={generate}
             onReset={reset}
             onDismiss={dismissPick}
-          />)
+          />
         ) : loading ? (
           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-16">
             <PickLoader />
@@ -1134,117 +1095,100 @@ function PickPage() {
             </motion.p>
           </motion.div>
         ) : (
-          <FormLayoutDispatcher
-            layout={layoutVariant}
-            // Bundle of state for the bold variants (spotlight/canvas/live)
-            // that render custom JSX instead of arranging the section panels.
-            formState={{
-              similarTo, setSimilarTo,
-              similarQuery, setSimilarQuery,
-              similarResults, similarOpen, setSimilarOpen,
-              userFavorites: items.filter((i) => i.isFavorite && i.mediaType === 'movie'),
-              mediaType, setMediaType,
-              moods, occasion, toggleMood, setOccasion,
-              pickedThemes, toggleTheme,
-              era, setEra, length, setLength,
-              avoidIds, setAvoidIds, languages, setLanguages,
-              pace, setPace, prompt, setPrompt,
-              advancedOpen, setAdvancedOpen,
-              advancedSummary,
-              tasteProfile, topGenres,
-              canGenerate, generate, error,
-            }}
-            // sections — each rendered inside the chosen grid layout (used by
-            // the original variants: current/twocol/hero/threecol).
-            reference={
-              <ReferenceSection
-                similarTo={similarTo} setSimilarTo={setSimilarTo}
-                similarQuery={similarQuery} setSimilarQuery={setSimilarQuery}
-                similarResults={similarResults}
-                similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
-                userFavorites={items.filter((i) => i.isFavorite && i.mediaType === 'movie')}
-                pickedThemes={pickedThemes}
-              />
-            }
-            mediaTypeBlock={<MediaTypeSection mediaType={mediaType} setMediaType={setMediaType} />}
-            themes={
-              <ThemesSection
-                moods={moods}
-                occasion={occasion}
-                similarTo={similarTo}
-                pickedThemes={pickedThemes}
-                onToggle={toggleTheme}
-              />
-            }
-            fineTune={
-              <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
-                <FineTune
-                  moods={moods} occasion={occasion}
-                  toggleMood={toggleMood} setOccasion={setOccasion}
-                  era={era} setEra={setEra}
-                  length={length} setLength={setLength}
-                  avoidIds={avoidIds} setAvoidIds={setAvoidIds}
-                  languages={languages} setLanguages={setLanguages}
-                  pace={pace} setPace={setPace}
-                  prompt={prompt} setPrompt={setPrompt}
+          /* HERO LAYOUT — reference + media-type/fine-tune on a 9/3 grid up
+             top, themes spans full width below, trailing taste/error/CTA. */
+          <motion.section
+            key="form"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="space-y-3 lg:space-y-4"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
+              <div className="md:col-span-9">
+                <ReferenceSection
+                  similarTo={similarTo} setSimilarTo={setSimilarTo}
+                  similarQuery={similarQuery} setSimilarQuery={setSimilarQuery}
+                  similarResults={similarResults}
+                  similarOpen={similarOpen} setSimilarOpen={setSimilarOpen}
+                  userFavorites={items.filter((i) => i.isFavorite && i.mediaType === 'movie')}
+                  pickedThemes={pickedThemes}
                 />
-              </FineTuneToggle>
-            }
-            taste={
-              tasteProfile && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-center text-xs text-neutral-500 dark:text-white/50"
-                >
-                  Tuning to your taste — {tasteProfile.totalFavs} favorites,{' '}
-                  {tasteProfile.dominantEra ? `mostly ${tasteProfile.dominantEra}` : 'mixed eras'}
-                  {tasteProfile.avgRating ? `, average rating ${tasteProfile.avgRating}` : ''}
-                  {topGenres.length > 0 && (
-                    <> · favors{' '}
-                      <span className="text-brand">
-                        {topGenres.slice(0, 3).map((id) => GENRE_NAMES[id]).filter(Boolean).join(', ')}
-                      </span>
-                    </>
-                  )}
-                  .
-                </motion.div>
-              )
-            }
-            error={
-              error && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center"
-                >
-                  {error}
-                </motion.div>
-              )
-            }
-            cta={
-              <AnimatePresence>
-                {canGenerate && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 12 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-                    className="text-center pt-2"
-                  >
-                    <motion.button
-                      onClick={generate}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.97 }}
-                      className="w-full max-w-xs mx-auto py-3.5 rounded-2xl text-base font-semibold bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition"
-                    >
-                      Find me something
-                    </motion.button>
-                  </motion.div>
+              </div>
+              <div className="md:col-span-3 space-y-3 lg:space-y-4">
+                <MediaTypeSection mediaType={mediaType} setMediaType={setMediaType} />
+                <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
+                  <FineTune
+                    moods={moods} occasion={occasion}
+                    toggleMood={toggleMood} setOccasion={setOccasion}
+                    era={era} setEra={setEra}
+                    length={length} setLength={setLength}
+                    avoidIds={avoidIds} setAvoidIds={setAvoidIds}
+                    languages={languages} setLanguages={setLanguages}
+                    pace={pace} setPace={setPace}
+                    prompt={prompt} setPrompt={setPrompt}
+                  />
+                </FineTuneToggle>
+              </div>
+            </div>
+
+            <ThemesSection
+              moods={moods}
+              occasion={occasion}
+              similarTo={similarTo}
+              pickedThemes={pickedThemes}
+              onToggle={toggleTheme}
+            />
+
+            {tasteProfile && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center text-xs text-neutral-500 dark:text-white/50"
+              >
+                Tuning to your taste — {tasteProfile.totalFavs} favorites,{' '}
+                {tasteProfile.dominantEra ? `mostly ${tasteProfile.dominantEra}` : 'mixed eras'}
+                {tasteProfile.avgRating ? `, average rating ${tasteProfile.avgRating}` : ''}
+                {topGenres.length > 0 && (
+                  <> · favors{' '}
+                    <span className="text-brand">
+                      {topGenres.slice(0, 3).map((id) => GENRE_NAMES[id]).filter(Boolean).join(', ')}
+                    </span>
+                  </>
                 )}
-              </AnimatePresence>
-            }
-          />
+                .
+              </motion.div>
+            )}
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm text-center"
+              >
+                {error}
+              </motion.div>
+            )}
+
+            <AnimatePresence>
+              {canGenerate && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                  className="text-center pt-2"
+                >
+                  <motion.button
+                    onClick={generate}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="w-full max-w-xs mx-auto py-3.5 rounded-2xl text-base font-semibold bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition"
+                  >
+                    Find me something
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.section>
         )}
       </AnimatePresence>
     </main>
@@ -1255,667 +1199,6 @@ function PickPage() {
 //  ──── Subcomponents ─────────────────────────────────────────────────
 // ───────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────
-// FormLayoutDispatcher — arranges the form sections into one of four
-// layouts based on the URL param ?layout=…. Default ('current') matches
-// the production vertical stack. Variants try to fit more on a laptop
-// without scrolling, each with a different feel.
-// ─────────────────────────────────────────────────────────────────────
-function FormLayoutDispatcher({ layout, formState, reference, mediaTypeBlock, themes, fineTune, taste, error, cta }) {
-  // Bold variants — render their own JSX from formState. They DON'T reuse
-  // the section panels; the whole point is a different visual paradigm.
-  if (layout === 'spotlight') return <SpotlightForm state={formState} />
-  if (layout === 'canvas')    return <CanvasForm state={formState} />
-  if (layout === 'live')      return <LiveForm state={formState} />
-
-  const sharedTrailing = (
-    <>
-      {taste}
-      {error}
-      {cta}
-    </>
-  )
-
-  // TWO-COLUMN WORKSPACE — wide left (primary inputs), slim right (filters)
-  if (layout === 'twocol') {
-    return (
-      <motion.section
-        key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="space-y-3 lg:space-y-4"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
-          <div className="md:col-span-7 space-y-3 lg:space-y-4">
-            {reference}
-            {themes}
-          </div>
-          <div className="md:col-span-5 space-y-3 lg:space-y-4">
-            {mediaTypeBlock}
-            {fineTune}
-          </div>
-        </div>
-        {sharedTrailing}
-      </motion.section>
-    )
-  }
-
-  // CINEMATIC HERO + SIDEBAR — reference is a wide hero panel, everything
-  // else lives in a vertical sidebar to its right (themes still gets room).
-  if (layout === 'hero') {
-    return (
-      <motion.section
-        key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="space-y-3 lg:space-y-4"
-      >
-        {/* Hero row: reference takes most width, media-type pills sit beside it */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
-          <div className="md:col-span-9">{reference}</div>
-          <div className="md:col-span-3 space-y-3 lg:space-y-4">
-            {mediaTypeBlock}
-            {fineTune}
-          </div>
-        </div>
-        {/* Themes goes full width below — it's the chip cloud, needs space */}
-        {themes}
-        {sharedTrailing}
-      </motion.section>
-    )
-  }
-
-  // THREE-COLUMN COMMAND CENTER — max density, three rails side by side
-  if (layout === 'threecol') {
-    return (
-      <motion.section
-        key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="space-y-3 lg:space-y-4"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
-          <div className="md:col-span-4 space-y-3 lg:space-y-4">{reference}</div>
-          <div className="md:col-span-5 space-y-3 lg:space-y-4">{themes}</div>
-          <div className="md:col-span-3 space-y-3 lg:space-y-4">
-            {mediaTypeBlock}
-            {fineTune}
-          </div>
-        </div>
-        {sharedTrailing}
-      </motion.section>
-    )
-  }
-
-  // DEFAULT — current vertical stack
-  return (
-    <motion.section
-      key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="space-y-3 lg:space-y-4"
-    >
-      {reference}
-      {mediaTypeBlock}
-      {themes}
-      {fineTune}
-      {sharedTrailing}
-    </motion.section>
-  )
-}
-
-// Floating widget shown only when ?layout is present. Lets the user
-// click between layouts without retyping URLs. Stripped once a winner
-// is chosen (alongside FormLayoutDispatcher's variant branches).
-function LayoutSwitcher({ current }) {
-  // Use setSearchParams (client-side URL update) instead of <a href>
-  // (full page navigation). The latter was getting intercepted by the
-  // service worker, serving cached HTML/JS — so the variant param changed
-  // in the URL but the underlying code never actually swapped.
-  const [, setSearchParams] = useSearchParams()
-  const variants = [
-    { id: 'current',   label: '1. Current (vertical stack)' },
-    { id: 'twocol',    label: '2. Two-column workspace' },
-    { id: 'hero',      label: '3. Hero + sidebar' },
-    { id: 'threecol',  label: '4. Three-column command center' },
-    { id: 'spotlight', label: '★ Spotlight (no panels)' },
-    { id: 'canvas',    label: '★ Canvas (cinematic backdrop)' },
-    { id: 'live',      label: '★ Live picker (sidebar + results)' },
-    { id: 'split',     label: '★ Split results (30/70 grid)' },
-  ]
-  return (
-    <div className="fixed bottom-4 right-4 z-50 p-3 rounded-2xl bg-neutral-900/90 backdrop-blur border border-brand/30 shadow-xl shadow-black/50 text-xs space-y-1.5 max-w-[260px]">
-      <div className="text-[10px] tracking-[0.2em] uppercase text-brand font-bold">
-        Layout preview
-      </div>
-      {variants.map((v) => (
-        <button
-          key={v.id}
-          onClick={() => setSearchParams({ layout: v.id })}
-          className={`block w-full text-left px-2 py-1 rounded-md transition ${
-            current === v.id
-              ? 'bg-brand/20 text-brand'
-              : 'text-neutral-400 hover:bg-white/5 hover:text-white/80'
-          }`}
-        >
-          {v.label}
-        </button>
-      ))}
-      <button
-        onClick={() => setSearchParams({})}
-        className="block w-full text-left mt-2 text-[10px] text-neutral-500 hover:text-brand"
-      >
-        ✕ close switcher
-      </button>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// SPOTLIGHT FORM — no panels at all. One giant input centered on the
-// page, selections as floating chips around it, fine-tune hidden behind
-// a single toggle. Reads as a command palette / AI search bar.
-// ─────────────────────────────────────────────────────────────────────
-function SpotlightForm({ state }) {
-  const s = state
-  const [showFilters, setShowFilters] = useState(false)
-  const allChips = [
-    s.similarTo && { kind: 'ref', label: s.similarTo.title, onRemove: () => s.setSimilarTo(null) },
-    ...[...s.pickedThemes].map((t) => ({ kind: 'theme', label: `#${t.replace(/ /g, '-')}`, onRemove: () => s.toggleTheme(t) })),
-  ].filter(Boolean)
-
-  return (
-    <motion.section
-      key="form-spotlight"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="min-h-[55vh] flex flex-col items-center justify-center gap-6 py-4"
-    >
-      {/* Media type pills */}
-      <div className="inline-flex gap-1 p-1 rounded-full bg-white/5 border border-white/10">
-        {['both', 'movie', 'tv'].map((t) => (
-          <button
-            key={t}
-            onClick={() => s.setMediaType(t)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
-              s.mediaType === t
-                ? 'bg-brand/20 text-brand'
-                : 'text-neutral-500 dark:text-white/50 hover:text-white/80'
-            }`}
-          >
-            {t === 'both' ? 'Both' : t === 'movie' ? 'Movies' : 'TV'}
-          </button>
-        ))}
-      </div>
-
-      {/* The spotlight — giant search input */}
-      <div className="w-full max-w-2xl relative">
-        {s.similarTo ? (
-          <div className="w-full px-6 py-5 text-lg sm:text-xl bg-brand/10 border border-brand/30 rounded-2xl text-brand font-semibold flex items-center justify-between">
-            <span>🎬 {s.similarTo.title}</span>
-            <button onClick={() => { s.setSimilarTo(null); s.setSimilarQuery('') }} className="text-brand/70 hover:text-brand text-2xl leading-none">×</button>
-          </div>
-        ) : (
-          <input
-            type="text"
-            value={s.similarQuery}
-            onChange={(e) => s.setSimilarQuery(e.target.value)}
-            onFocus={() => s.setSimilarOpen(true)}
-            onBlur={() => setTimeout(() => s.setSimilarOpen(false), 150)}
-            placeholder="What should we watch tonight?"
-            className="w-full px-6 py-5 text-lg sm:text-xl bg-white/[0.04] border border-white/15 rounded-2xl text-white placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.08] transition"
-          />
-        )}
-        {s.similarOpen && s.similarResults.length > 0 && !s.similarTo && (
-          <div className="absolute z-40 mt-2 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
-            {s.similarResults.map((m) => (
-              <button
-                key={`${m.mediaType}-${m.id}`}
-                onMouseDown={() => { s.setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); s.setSimilarQuery('') }}
-                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left"
-              >
-                {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded shrink-0" />}
-                <span className="text-sm flex-1 truncate">{m.title}</span>
-                {m.mediaType === 'tv' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">TV</span>}
-                {m.year && <span className="text-xs text-white/50">{m.year}</span>}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Selected chips floating beneath the input */}
-      {allChips.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 max-w-2xl">
-          {allChips.map((c, i) => (
-            <motion.div
-              key={`${c.kind}-${i}`}
-              initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand/15 border border-brand/40 text-brand text-sm font-semibold"
-            >
-              {c.label}
-              <button onClick={c.onRemove} className="text-brand/60 hover:text-brand text-base leading-none">×</button>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* Settings + Find row */}
-      <div className="flex flex-col items-center gap-3 w-full max-w-md">
-        <button onClick={() => setShowFilters((v) => !v)} className="text-xs text-neutral-500 hover:text-brand transition flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          {showFilters ? 'Hide' : 'Themes + filters'}
-        </button>
-        <button
-          onClick={s.generate}
-          disabled={!s.canGenerate}
-          className="w-full px-8 py-4 rounded-2xl text-base font-semibold bg-gradient-to-br from-white/[0.06] via-white/[0.03] to-transparent hover:from-brand/15 hover:to-brand/5 text-brand border border-white/15 hover:border-brand/40 disabled:opacity-30 disabled:cursor-not-allowed transition"
-        >
-          Find me something
-        </button>
-      </div>
-
-      {/* Collapsible: themes + fine-tune */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="w-full max-w-2xl overflow-hidden"
-          >
-            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-4">
-              <ThemeChips moods={s.moods} occasion={s.occasion} similarTo={s.similarTo} pickedThemes={s.pickedThemes} onToggle={s.toggleTheme} />
-              <FineTuneToggle open={s.advancedOpen} summary={s.advancedSummary} onToggle={() => s.setAdvancedOpen((v) => !v)}>
-                <FineTune
-                  moods={s.moods} occasion={s.occasion} toggleMood={s.toggleMood} setOccasion={s.setOccasion}
-                  era={s.era} setEra={s.setEra} length={s.length} setLength={s.setLength}
-                  avoidIds={s.avoidIds} setAvoidIds={s.setAvoidIds}
-                  languages={s.languages} setLanguages={s.setLanguages}
-                  pace={s.pace} setPace={s.setPace}
-                  prompt={s.prompt} setPrompt={s.setPrompt}
-                />
-              </FineTuneToggle>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {s.error && <p className="text-sm text-red-400">{s.error}</p>}
-    </motion.section>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// CANVAS FORM — full-bleed brand-gold gradient backdrop with strong
-// dark overlay; controls float on top with backdrop-blur glass. Themes
-// scroll horizontally. Cinematic, premium-feeling.
-// ─────────────────────────────────────────────────────────────────────
-function CanvasForm({ state }) {
-  const s = state
-  return (
-    <motion.section
-      key="form-canvas"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="relative -mx-4 sm:-mx-6 px-4 sm:px-6 py-8 sm:py-10 overflow-hidden min-h-[70vh]"
-    >
-      {/* Animated brand backdrop — radial + drifting glow blobs */}
-      <div className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/[0.18] via-brand/[0.05] to-transparent" />
-        <motion.div
-          className="absolute -top-32 left-1/4 w-[40rem] h-[40rem] rounded-full bg-brand/[0.15] blur-3xl"
-          animate={{ x: [0, 40, 0], y: [0, 30, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute bottom-0 right-0 w-[30rem] h-[30rem] rounded-full bg-brand/[0.08] blur-3xl"
-          animate={{ x: [0, -30, 0], y: [0, -20, 0] }}
-          transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/50" />
-      </div>
-
-      <div className="relative max-w-3xl mx-auto space-y-5">
-        {/* Reference — wide glass card */}
-        <div className="p-5 sm:p-6 rounded-3xl bg-black/30 backdrop-blur-xl border border-white/20 shadow-2xl">
-          <div className="text-[10px] tracking-[0.3em] uppercase text-brand mb-3 font-bold">Most important</div>
-          {s.similarTo ? (
-            <div className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-brand/20 border border-brand/50 text-sm font-semibold text-brand">
-              🎬 {s.similarTo.title}
-              <button onClick={() => { s.setSimilarTo(null); s.setSimilarQuery('') }} className="ml-1 text-brand/70 hover:text-brand text-lg leading-none">×</button>
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                type="text"
-                value={s.similarQuery}
-                onChange={(e) => s.setSimilarQuery(e.target.value)}
-                onFocus={() => s.setSimilarOpen(true)}
-                onBlur={() => setTimeout(() => s.setSimilarOpen(false), 150)}
-                placeholder="Pick a movie you love..."
-                className="w-full px-5 py-3 rounded-2xl text-base bg-white/10 backdrop-blur border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-brand"
-              />
-              {s.similarOpen && s.similarResults.length > 0 && !s.similarTo && (
-                <div className="absolute z-40 mt-2 w-full rounded-2xl bg-black/80 backdrop-blur-xl border border-white/20 shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
-                  {s.similarResults.map((m) => (
-                    <button
-                      key={`${m.mediaType}-${m.id}`}
-                      onMouseDown={() => { s.setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); s.setSimilarQuery('') }}
-                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 text-left"
-                    >
-                      {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded shrink-0" />}
-                      <span className="text-sm flex-1 truncate">{m.title}</span>
-                      {m.mediaType === 'tv' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300">TV</span>}
-                      {m.year && <span className="text-xs text-white/50">{m.year}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Media type — segmented bar on glass */}
-        <div className="flex justify-center">
-          <div className="inline-flex gap-1 p-1 rounded-full bg-black/40 backdrop-blur-xl border border-white/20">
-            {['both', 'movie', 'tv'].map((t) => (
-              <button
-                key={t}
-                onClick={() => s.setMediaType(t)}
-                className={`px-5 py-1.5 rounded-full text-sm font-medium transition ${
-                  s.mediaType === t ? 'bg-brand text-black' : 'text-white/70 hover:text-white'
-                }`}
-              >
-                {t === 'both' ? 'Both' : t === 'movie' ? 'Movies' : 'TV'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Themes — glass card */}
-        <div className="p-5 sm:p-6 rounded-3xl bg-black/30 backdrop-blur-xl border border-white/20 shadow-2xl">
-          <ThemeChips moods={s.moods} occasion={s.occasion} similarTo={s.similarTo} pickedThemes={s.pickedThemes} onToggle={s.toggleTheme} />
-        </div>
-
-        {/* Fine-tune — glass toggle */}
-        <div className="rounded-3xl bg-black/30 backdrop-blur-xl border border-white/20 shadow-2xl overflow-hidden">
-          <FineTuneToggle open={s.advancedOpen} summary={s.advancedSummary} onToggle={() => s.setAdvancedOpen((v) => !v)}>
-            <FineTune
-              moods={s.moods} occasion={s.occasion} toggleMood={s.toggleMood} setOccasion={s.setOccasion}
-              era={s.era} setEra={s.setEra} length={s.length} setLength={s.setLength}
-              avoidIds={s.avoidIds} setAvoidIds={s.setAvoidIds}
-              languages={s.languages} setLanguages={s.setLanguages}
-              pace={s.pace} setPace={s.setPace}
-              prompt={s.prompt} setPrompt={s.setPrompt}
-            />
-          </FineTuneToggle>
-        </div>
-
-        {s.error && <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 text-sm text-center">{s.error}</div>}
-
-        {/* Floating CTA */}
-        <div className="text-center pt-2">
-          <button
-            onClick={s.generate}
-            disabled={!s.canGenerate}
-            className="px-10 py-3.5 rounded-2xl text-base font-semibold bg-brand/20 backdrop-blur-xl text-brand border-2 border-brand/50 hover:bg-brand/30 hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition shadow-2xl"
-          >
-            Find me something
-          </button>
-        </div>
-      </div>
-    </motion.section>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// LIVE FORM — sticky sidebar with the form on the left, results pane
-// on the right (placeholder until first generate). No more form/results
-// modal-style switch. Feels like a real product surface.
-// ─────────────────────────────────────────────────────────────────────
-function LiveForm({ state }) {
-  const s = state
-  return (
-    <motion.section
-      key="form-live"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
-        {/* SIDEBAR — sticky on desktop */}
-        <aside className="md:col-span-4 md:sticky md:top-4 self-start space-y-3">
-          {/* Media type */}
-          <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
-            <div className="text-[10px] tracking-[0.2em] uppercase text-brand font-bold mb-2">Show me</div>
-            <div className="flex flex-col gap-1.5">
-              {['both', 'movie', 'tv'].map((t) => (
-                <button
-                  key={t}
-                  onClick={() => s.setMediaType(t)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
-                    s.mediaType === t ? 'bg-brand/15 text-brand border border-brand/30' : 'text-white/60 hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <span className={`w-3 h-3 rounded-full ${s.mediaType === t ? 'bg-brand' : 'border-2 border-white/30'}`} />
-                  {t === 'both' ? 'Both' : t === 'movie' ? 'Movies' : 'TV series'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Reference */}
-          <div className="p-4 rounded-2xl bg-brand/[0.08] border border-brand/30">
-            <div className="text-[10px] tracking-[0.2em] uppercase text-brand font-bold mb-2">Reference</div>
-            {s.similarTo ? (
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand/20 border border-brand/40 text-sm text-brand">
-                🎬 {s.similarTo.title}
-                <button onClick={() => { s.setSimilarTo(null); s.setSimilarQuery('') }} className="text-brand/70 hover:text-brand">×</button>
-              </div>
-            ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  value={s.similarQuery}
-                  onChange={(e) => s.setSimilarQuery(e.target.value)}
-                  onFocus={() => s.setSimilarOpen(true)}
-                  onBlur={() => setTimeout(() => s.setSimilarOpen(false), 150)}
-                  placeholder="e.g. Breaking Bad"
-                  className="w-full px-3 py-2 text-sm rounded-lg bg-white/[0.05] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand"
-                />
-                {s.similarOpen && s.similarResults.length > 0 && (
-                  <div className="absolute z-40 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
-                    {s.similarResults.map((m) => (
-                      <button
-                        key={`${m.mediaType}-${m.id}`}
-                        onMouseDown={() => { s.setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); s.setSimilarQuery('') }}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-white/5 text-left"
-                      >
-                        {m.posterUrl && <img src={m.posterUrl} alt="" className="w-6 h-9 object-cover rounded shrink-0" />}
-                        <span className="text-xs flex-1 truncate">{m.title}</span>
-                        {m.mediaType === 'tv' && <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-purple-500/30 text-purple-300">TV</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Themes — compact */}
-          <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10">
-            <ThemeChips moods={s.moods} occasion={s.occasion} similarTo={s.similarTo} pickedThemes={s.pickedThemes} onToggle={s.toggleTheme} />
-          </div>
-
-          {/* Fine-tune */}
-          <FineTuneToggle open={s.advancedOpen} summary={s.advancedSummary} onToggle={() => s.setAdvancedOpen((v) => !v)}>
-            <FineTune
-              moods={s.moods} occasion={s.occasion} toggleMood={s.toggleMood} setOccasion={s.setOccasion}
-              era={s.era} setEra={s.setEra} length={s.length} setLength={s.setLength}
-              avoidIds={s.avoidIds} setAvoidIds={s.setAvoidIds}
-              languages={s.languages} setLanguages={s.setLanguages}
-              pace={s.pace} setPace={s.setPace}
-              prompt={s.prompt} setPrompt={s.setPrompt}
-            />
-          </FineTuneToggle>
-
-          {/* CTA */}
-          <button
-            onClick={s.generate}
-            disabled={!s.canGenerate}
-            className="w-full py-3 rounded-2xl text-sm font-semibold bg-gradient-to-br from-brand/15 to-brand/5 hover:from-brand hover:to-brand-dark text-brand hover:text-black border border-brand/30 hover:border-brand disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
-            Find me something
-          </button>
-
-          {s.error && <p className="text-xs text-red-400 text-center">{s.error}</p>}
-        </aside>
-
-        {/* RESULTS PANE — placeholder; real results show via the picks→results
-            flow elsewhere. This pane teases the layout. */}
-        <main className="md:col-span-8">
-          <div className="min-h-[60vh] rounded-2xl bg-white/[0.02] border border-dashed border-white/10 flex flex-col items-center justify-center text-center p-8 gap-3">
-            <div className="text-5xl opacity-30">🎬</div>
-            <h3 className="text-lg font-bold text-white/80">Your picks will appear here</h3>
-            <p className="text-sm text-white/40 max-w-xs">
-              Adjust filters on the left, then hit <span className="text-brand">Find me something</span> to see picks rendered in this pane.
-            </p>
-          </div>
-        </main>
-      </div>
-    </motion.section>
-  )
-}
-
-// Unified Mood + Occasion panel. Replaces two separate numbered cards with
-// ─────────────────────────────────────────────────────────────────────
-// SplitResultsView — 30/70 grid like the CSS Grid Generator screenshot.
-// LEFT column (3fr): heading, subtitle, context, taste line, Pick again
-// + Start over actions. RIGHT column (7fr): the colour-graded score bar
-// across the top, then the three pick cards in a row beneath.
-// ─────────────────────────────────────────────────────────────────────
-function SplitResultsView({ picks, loading, round, moods, occasion, occasionLabel, similarTo, pickedThemes, mediaType, onChangeMediaType, seenCount, tasteProfile, topScore, topGenres, onPickAgain, onReset, onDismiss }) {
-  const topGenreLabels = (topGenres || []).slice(0, 3).map((id) => GENRE_NAMES[id]).filter(Boolean)
-  // Reuse ResultsView's smart header construction — same rules
-  const themeCount = pickedThemes?.size || 0
-  const themesArr  = themeCount > 0 ? [...pickedThemes] : []
-  function ContextHeader() {
-    if (moods.length > 0) return <>For a <strong>{moods.join(' + ')}</strong> watch{occasionLabel ? ` (${occasionLabel.toLowerCase()})` : ''}.</>
-    if (similarTo)        return <>Picks like <strong>{similarTo.title}</strong>{occasionLabel ? ` for ${occasionLabel.toLowerCase()}` : ''}.</>
-    if (themeCount > 0) {
-      const shown = themesArr.slice(0, 3).map((t) => `#${t.replace(/ /g, '-')}`).join(' ')
-      return <>Picks tagged <strong>{shown}</strong>{themeCount > 3 ? ` +${themeCount - 3} more` : ''}{occasionLabel ? ` for ${occasionLabel.toLowerCase()}` : ''}.</>
-    }
-    if (occasionLabel) return <>Picks for <strong>{occasionLabel.toLowerCase()}</strong>.</>
-    return <>Your picks tonight.</>
-  }
-
-  return (
-    <motion.section
-      key="results-split"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -16 }}
-      transition={{ duration: 0.3 }}
-      className="grid grid-cols-1 md:grid-cols-[3fr_7fr] gap-6 lg:gap-8 items-start"
-    >
-      {/* ─── LEFT (3fr) — title, context, actions ────────────────────── */}
-      <aside className="md:sticky md:top-6 self-start space-y-4">
-        <div className="text-[10px] tracking-[0.3em] uppercase text-brand font-bold flex items-center gap-2">
-          <span className="h-px w-6 bg-brand/40" />
-          AI PICK
-        </div>
-        <h1 className="font-display text-3xl sm:text-4xl tracking-[0.02em] leading-tight">
-          What should I watch?
-        </h1>
-        <p className="text-sm text-neutral-500 dark:text-white/60">
-          Start with a movie you love — or skip and pick by theme.
-        </p>
-
-        <p className="text-xs text-neutral-500 dark:text-white/50 pt-1 italic">
-          <ContextHeader />
-        </p>
-
-        {tasteProfile && (
-          <p className="text-[11px] text-neutral-400 dark:text-white/40">
-            Tuned to your taste · {tasteProfile.totalFavs} favorites
-            {topGenreLabels.length > 0 && <> · weights <span className="text-brand">{topGenreLabels.join(', ')}</span></>}
-          </p>
-        )}
-
-        {/* Media-type switcher — same compact pills as ResultsView */}
-        <ResultsMediaTypeSwitcher mediaType={mediaType} onChange={onChangeMediaType} disabled={loading} />
-
-        {/* Actions */}
-        <div className="space-y-2.5 pt-2">
-          <motion.button
-            onClick={onPickAgain}
-            disabled={loading}
-            whileHover={loading ? {} : { scale: 1.02 }}
-            whileTap={loading ? {} : { scale: 0.97 }}
-            className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
-          >
-            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
-          </motion.button>
-          <button
-            onClick={onReset}
-            disabled={loading}
-            className="block w-full text-center text-base text-neutral-500 dark:text-white/45 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50"
-          >
-            or start over with a different mood
-          </button>
-        </div>
-
-        {seenCount > 0 && (
-          <p className="text-[10px] text-neutral-400 dark:text-white/30">
-            {seenCount} {seenCount === 1 ? 'title' : 'titles'} excluded from this session.
-          </p>
-        )}
-      </aside>
-
-      {/* ─── RIGHT (7fr) — score bar above + cards below ─────────────── */}
-      <div className="space-y-4">
-        {topScore != null && (
-          <div className="rounded-2xl bg-white/[0.03] border border-white/10 px-4 py-3">
-            <ScoreBar score={topScore} />
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-h-[280px] sm:items-center">
-          <AnimatePresence mode="wait">
-            {picks?.length === 0 ? (
-              <ExhaustedState key="exhausted" className="sm:col-span-3" />
-            ) : picks?.length > 0 ? (
-              picks.map((pick, idx) => (
-                <motion.div
-                  key={`pick-split-${round}-${pick.id}`}
-                  initial={{ opacity: 0, scale: 0.94 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: idx * 0.05 }}
-                  className="text-center relative group will-change-transform"
-                >
-                  <button
-                    onClick={() => onDismiss(pick)}
-                    title="Show me less like this"
-                    className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-sm border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
-                  >
-                    ×
-                  </button>
-                  <MediaCard {...pick} />
-                  <motion.div
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                    transition={{ delay: 0.18 + idx * 0.05, duration: 0.22 }}
-                    className="mt-1.5 flex flex-wrap justify-center gap-1 px-0.5"
-                  >
-                    {tagsFor(pick, moods, occasion).map((tag) => (
-                      <span key={tag} className="text-[9px] sm:text-[10px] font-medium text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
-                        #{tag}
-                      </span>
-                    ))}
-                  </motion.div>
-                  <motion.p
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                    transition={{ delay: 0.26 + idx * 0.05, duration: 0.24 }}
-                    className="mt-1 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
-                  >
-                    {reasonFor(pick, moods, occasionLabel)}
-                  </motion.p>
-                </motion.div>
-              ))
-            ) : null}
-          </AnimatePresence>
-        </div>
-      </div>
-    </motion.section>
-  )
-}
 
 function VibePanel({ moods, occasion, toggleMood, setOccasion }) {
   // Compact label for the live preview: first word of each mood label.

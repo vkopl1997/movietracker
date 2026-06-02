@@ -701,16 +701,27 @@ function PickPage() {
       const explicitMode = !!similarTo?.id || pickedThemes.size > 0
 
       // [#3] Similar-to reference: pull 2 pages of recommendations so the
-      // pool is dominated by movies adjacent to the user's pick.
+      // pool is dominated by titles adjacent to the user's pick.
+      //
+      // Strict mediaType filter: TMDb's /recommendations endpoint returns
+      // titles of the SAME mediaType as the reference. So if the user picks
+      // Breaking Bad (tv) but asked for Movies, those recs would be TV shows
+      // and would leak in. Skip the fetch entirely when the reference's type
+      // doesn't match the filter — the discover query + themes still bridge
+      // the cross-type case (movies tagged with BB's keywords).
       if (similarTo?.id) {
-        const [recs1, recs2] = await Promise.all([
-          getRecommendations(similarTo.mediaType || 'movie', similarTo.id, 1).catch(() => []),
-          getRecommendations(similarTo.mediaType || 'movie', similarTo.id, 2).catch(() => []),
-        ])
-        for (const r of [...recs1, ...recs2]) {
-          if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
-            pool.push(r)
-            boostedIds.add(r.id)
+        const refType = similarTo.mediaType || 'movie'
+        const refMatchesFilter = mediaType === 'both' || mediaType === refType
+        if (refMatchesFilter) {
+          const [recs1, recs2] = await Promise.all([
+            getRecommendations(refType, similarTo.id, 1).catch(() => []),
+            getRecommendations(refType, similarTo.id, 2).catch(() => []),
+          ])
+          for (const r of [...recs1, ...recs2]) {
+            if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
+              pool.push(r)
+              boostedIds.add(r.id)
+            }
           }
         }
       }
@@ -779,10 +790,15 @@ function PickPage() {
       for (const arr of discoverResults) pool.push(...arr)
 
       // Dedupe + skip seen/watched + ENFORCE rating floor client-side
-      // (defense-in-depth — sometimes TMDb returns just-below-threshold items)
+      // (defense-in-depth — sometimes TMDb returns just-below-threshold items).
+      // ALSO enforces the mediaType filter as a final safety net: even if
+      // something snuck into the pool via a path that didn't honor it (a future
+      // code change, an unexpected TMDb response, anything), it gets dropped
+      // here. Belt + suspenders on the user's "Movies only" / "TV only" choice.
       const dedupe = new Set()
       pool = pool
         .filter((m) => (m.rating ?? 0) >= HIGH_RATING_FLOOR)
+        .filter((m) => mediaType === 'both' || m.mediaType === mediaType)
         .filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
         .filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
 

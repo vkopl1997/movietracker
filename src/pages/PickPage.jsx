@@ -27,7 +27,9 @@ import {
   searchMulti,
   findKeywordId,
   searchKeywords,
+  getKeywords,
   getMovieKeywords,
+  getRecommendations,
   getMovieRecommendations,
   getMediaDetails,
 } from '../lib/tmdb'
@@ -576,7 +578,11 @@ function PickPage() {
       searchMulti(q)
         .then((res) => {
           if (cancelled) return
-          setSimilarResults(res.filter((r) => r.mediaType === 'movie').slice(0, 6))
+          // Allow BOTH movies and TV shows as references so things like
+          // Scavengers Reign / The Wire / Severance are searchable.
+          setSimilarResults(
+            res.filter((r) => r.mediaType === 'movie' || r.mediaType === 'tv').slice(0, 8)
+          )
         })
         .catch(() => !cancelled && setSimilarResults([]))
     }, 220)
@@ -691,8 +697,8 @@ function PickPage() {
       // pool is dominated by movies adjacent to the user's pick.
       if (similarTo?.id) {
         const [recs1, recs2] = await Promise.all([
-          getMovieRecommendations(similarTo.id, 1).catch(() => []),
-          getMovieRecommendations(similarTo.id, 2).catch(() => []),
+          getRecommendations(similarTo.mediaType || 'movie', similarTo.id, 1).catch(() => []),
+          getRecommendations(similarTo.mediaType || 'movie', similarTo.id, 2).catch(() => []),
         ])
         for (const r of [...recs1, ...recs2]) {
           if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
@@ -1182,15 +1188,20 @@ function ReferenceSection({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="relative p-4 sm:p-5 lg:p-6 rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30 shadow-2xl shadow-black/30 overflow-hidden"
+      className="relative p-4 sm:p-5 lg:p-6 rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30 shadow-2xl shadow-black/30"
     >
-      {/* Decorative gold glow that breathes */}
-      <motion.div
-        aria-hidden
-        className="absolute -top-20 -right-20 w-72 h-72 bg-brand/[0.18] rounded-full blur-3xl pointer-events-none"
-        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.75, 0.5] }}
-        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-      />
+      {/* Glow blobs live inside their own clipped container so the panel
+          itself can let the autocomplete dropdown spill below. Previous
+          version had `overflow-hidden` on the panel — that not only clipped
+          the dropdown visually but its invisible portion was still
+          intercepting clicks on the Themes hashtags below. */}
+      <div aria-hidden className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute -top-20 -right-20 w-72 h-72 bg-brand/[0.18] rounded-full blur-3xl"
+          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.75, 0.5] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
 
       {/* Eyebrow + live dot */}
       <div className="relative flex items-center gap-2.5 mb-2">
@@ -1244,23 +1255,28 @@ function ReferenceSection({
               onChange={(e) => setSimilarQuery(e.target.value)}
               onFocus={() => setSimilarOpen(true)}
               onBlur={() => setTimeout(() => setSimilarOpen(false), 150)}
-              placeholder="e.g. Inception, La La Land, Parasite, Heat…"
+              placeholder="e.g. Inception, Heat, Scavengers Reign, Parasite…"
               className="w-full px-5 py-3 rounded-full text-base bg-white/[0.06] border border-white/15 placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.1] transition"
             />
           )}
 
-          {/* Autocomplete dropdown */}
+          {/* Autocomplete dropdown — z-40 + a max-height so it never
+              extends past its visible portion into the Themes panel below
+              and steals their clicks. */}
           {similarOpen && similarResults.length > 0 && !similarTo && (
-            <div className="absolute z-20 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden">
+            <div className="absolute z-40 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
               {similarResults.map((m) => (
                 <button
-                  key={m.id}
-                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title }); setSimilarQuery(''); setSimilarOpen(false) }}
+                  key={`${m.mediaType}-${m.id}`}
+                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType }); setSimilarQuery(''); setSimilarOpen(false) }}
                   className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left transition"
                 >
-                  {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded" />}
+                  {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded shrink-0" />}
                   <span className="text-sm flex-1 min-w-0 truncate">{m.title}</span>
-                  {m.year && <span className="text-xs text-white/50">{m.year}</span>}
+                  {m.mediaType === 'tv' && (
+                    <span className="text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300 shrink-0">TV</span>
+                  )}
+                  {m.year && <span className="text-xs text-white/50 shrink-0">{m.year}</span>}
                 </button>
               ))}
             </div>
@@ -1621,7 +1637,7 @@ function ThemeChips({ moods, occasion, similarTo, pickedThemes, onToggle }) {
   useEffect(() => {
     if (!similarTo?.id) { setMovieKeywords([]); return }
     let cancelled = false
-    getMovieKeywords(similarTo.id).then((kws) => {
+    getKeywords(similarTo.mediaType || 'movie', similarTo.id).then((kws) => {
       if (cancelled) return
       const bankSet = new Set(THEME_BANK.map((t) => t.name))
       const inBank = kws.filter((k) => bankSet.has(k.name))

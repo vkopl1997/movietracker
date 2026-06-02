@@ -112,26 +112,35 @@ export async function searchKeywords(query) {
   }
 }
 
-// Fetch the TMDb keywords attached to a specific movie. Used to bridge the
-// "Make it feel like" choice into the Themes section ("Themes from Inception:
-// #dream #subconscious #heist…") so the two inputs feed each other.
-export async function getMovieKeywords(movieId) {
+// Fetch the TMDb keywords attached to a movie OR a TV show. Used to bridge
+// the "Make it feel like" choice into the Themes section ("Themes from
+// Scavengers Reign: #dystopia #survival…") so the two inputs feed each other.
+//
+// TMDb is inconsistent: movies return { keywords: [...] }, TV returns
+// { results: [...] }. Normalize both shapes here.
+export async function getKeywords(mediaType, id) {
   try {
-    const data = await tmdbFetch(`/movie/${movieId}/keywords`)
-    return (data.keywords ?? []).map((k) => ({ id: k.id, name: k.name }))
+    const data = await tmdbFetch(`/${mediaType}/${id}/keywords`)
+    const raw = data.keywords ?? data.results ?? []
+    return raw.map((k) => ({ id: k.id, name: k.name }))
   } catch {
     return []
   }
 }
+export const getMovieKeywords = (id) => getKeywords('movie', id)
 
-// Get TMDb "similar" + "recommendations" for a single movie (for the
-// "Make it feel like ___" feature on the Pick page).
-export async function getMovieRecommendations(id, page = 1) {
-  const data = await tmdbFetch(`/movie/${id}/recommendations?page=${page}`)
+// Get TMDb "recommendations" for a single movie OR tv show. Used by the
+// "Make it feel like ___" feature so the user can seed the picker with
+// either kind of reference. Movie variant kept as a thin wrapper so old
+// call sites don't break.
+export async function getRecommendations(mediaType, id, page = 1) {
+  const data = await tmdbFetch(`/${mediaType}/${id}/recommendations?page=${page}`)
   return (data.results ?? [])
     .filter((m) => m.poster_path)
-    .map((m) => normalize({ ...m, media_type: 'movie' }))
+    .map((m) => normalize({ ...m, media_type: mediaType }))
 }
+export const getMovieRecommendations = (id, page = 1) =>
+  getRecommendations('movie', id, page)
 
 export async function discoverMovies({
   genres = [],              // array of TMDb genre ids to include

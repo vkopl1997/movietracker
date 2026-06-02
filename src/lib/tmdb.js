@@ -142,6 +142,72 @@ export async function getRecommendations(mediaType, id, page = 1) {
 export const getMovieRecommendations = (id, page = 1) =>
   getRecommendations('movie', id, page)
 
+// Movie genres don't all have a 1:1 TV equivalent — TMDb merges some
+// (Action+Adventure -> "Action & Adventure", Sci-Fi+Fantasy -> "Sci-Fi &
+// Fantasy", etc.) and a few simply don't apply to TV (Music, Horror, TV
+// Movie). This lets the picker translate the mood/avoid genre lists when
+// it's running a /discover/tv query. We drop the ones with no equivalent
+// rather than translate poorly.
+const MOVIE_TO_TV_GENRE = {
+  28: 10759,    // Action            -> Action & Adventure
+  12: 10759,    // Adventure         -> Action & Adventure
+  14: 10765,    // Fantasy           -> Sci-Fi & Fantasy
+  878: 10765,   // Sci-Fi            -> Sci-Fi & Fantasy
+  10752: 10768, // War               -> War & Politics
+}
+const NO_TV_EQUIVALENT = new Set([
+  10402,  // Music
+  53,     // Thriller
+  27,     // Horror
+  10770,  // TV Movie
+  36,     // History (used very differently for TV)
+  10749,  // Romance
+])
+// Shared (kept as-is): 16 Animation, 35 Comedy, 80 Crime, 99 Doc, 18 Drama,
+// 10751 Family, 9648 Mystery, 37 Western.
+export function moviesToTvGenres(movieGenreIds = []) {
+  return [...new Set(
+    movieGenreIds.flatMap((id) => {
+      if (NO_TV_EQUIVALENT.has(id)) return []
+      return [MOVIE_TO_TV_GENRE[id] || id]
+    })
+  )]
+}
+
+// TV-side counterpart to discoverMovies. Same shape so PickPage can hit
+// both with one filter object (after translating genres via the helper
+// above). TMDb uses first_air_date.* instead of primary_release_date.*,
+// and runtime / certification don't apply at the series level.
+export async function discoverTv({
+  genres = [],
+  withoutGenres = [],
+  keywords = [],
+  withLanguages = [],
+  minRating = 6.5,
+  minVoteCount = 200,
+  releaseBefore,
+  releaseAfter,
+  sortBy = 'vote_average.desc',
+  page = 1,
+} = {}) {
+  const params = new URLSearchParams()
+  if (genres.length)        params.set('with_genres', genres.join(','))
+  if (withoutGenres.length) params.set('without_genres', withoutGenres.join(','))
+  if (keywords.length)      params.set('with_keywords', keywords.join(','))
+  if (withLanguages.length) params.set('with_original_language', withLanguages.join('|'))
+  if (Number.isFinite(releaseBefore)) params.set('first_air_date.lte', `${releaseBefore}-12-31`)
+  if (Number.isFinite(releaseAfter))  params.set('first_air_date.gte', `${releaseAfter}-01-01`)
+  params.set('vote_average.gte', String(minRating))
+  params.set('vote_count.gte',   String(minVoteCount))
+  params.set('sort_by', sortBy)
+  params.set('page', String(page))
+
+  const data = await tmdbFetch(`/discover/tv?${params.toString()}`)
+  return (data.results ?? [])
+    .filter((m) => m.poster_path)
+    .map((m) => normalize({ ...m, media_type: 'tv' }))
+}
+
 export async function discoverMovies({
   genres = [],              // array of TMDb genre ids to include
   withoutGenres = [],       // array of TMDb genre ids to EXCLUDE

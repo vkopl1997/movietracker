@@ -24,6 +24,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useFavorites } from '../lib/FavoritesContext'
 import {
   discoverMovies,
+  discoverTv,
+  moviesToTvGenres,
   searchMulti,
   findKeywordId,
   searchKeywords,
@@ -388,6 +390,9 @@ function PickPage() {
   // ── Required state ────────────────────────────────────────────────
   const [moods, setMoods]       = useState([])               // [#5] multi-select
   const [occasion, setOccasion] = useState(null)              // [#6]
+  // Primary filter on the kind of content returned.
+  // 'both' = movies AND tv (default), 'movie' = movies only, 'tv' = tv only.
+  const [mediaType, setMediaType] = useState('both')
 
   // ── Optional state ────────────────────────────────────────────────
   const [era, setEra]               = useState('any')
@@ -435,6 +440,9 @@ function PickPage() {
       const s = JSON.parse(raw)
       if (Array.isArray(s.moods))     setMoods(s.moods)
       if (s.occasion)                 setOccasion(s.occasion)
+      if (s.mediaType === 'movie' || s.mediaType === 'tv' || s.mediaType === 'both') {
+        setMediaType(s.mediaType)
+      }
       if (s.era)                      setEra(s.era)
       if (s.length)                   setLength(s.length)
       if (typeof s.pace === 'number') setPace(s.pace)
@@ -460,7 +468,7 @@ function PickPage() {
     if (!restoredRef.current) return
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-        moods, occasion, era, length, pace,
+        moods, occasion, mediaType, era, length, pace,
         avoidIds:     [...avoidIds],
         pickedThemes: [...pickedThemes],
         languages:    [...languages],
@@ -469,7 +477,7 @@ function PickPage() {
         downGenres, sortIdx, round, hasPicked, picks, topScore, advancedOpen,
       }))
     } catch { /* quota / disabled — ignore */ }
-  }, [moods, occasion, era, length, pace, avoidIds, pickedThemes, languages,
+  }, [moods, occasion, mediaType, era, length, pace, avoidIds, pickedThemes, languages,
       prompt, similarTo, seenIds, downGenres, sortIdx, round, hasPicked, picks, topScore, advancedOpen])
 
   // ── [#1] Library taste profile — analyze user's favorites ─────────
@@ -707,18 +715,25 @@ function PickPage() {
         }
       }
 
-      // [#1] Auto-boost from user's top 3 favorited MOVIES — only when no
-      // explicit signal was given. We do NOT re-enable it on later rounds
-      // in explicit mode any more — adding it later was making the pool
-      // grow between rounds, which broke score monotonicity.
+      // [#1] Auto-boost from the user's top favorites — only when no explicit
+      // signal was given. Pulls recommendations of up to 3 fav movies AND up
+      // to 3 fav TV shows, honoring the mediaType filter (so a "TV only"
+      // generate doesn't pull movie recs into the pool and vice versa).
       if (!explicitMode) {
-        const topFavMovies = items
-          .filter((i) => i.isFavorite && i.mediaType === 'movie')
-          .slice(0, 3)
-        if (topFavMovies.length > 0) {
-          const recArrays = await Promise.all(
-            topFavMovies.map((f) => getMovieRecommendations(f.id).catch(() => []))
-          )
+        const wantMovie = mediaType === 'movie' || mediaType === 'both'
+        const wantTv    = mediaType === 'tv'    || mediaType === 'both'
+        const favMovies = wantMovie
+          ? items.filter((i) => i.isFavorite && i.mediaType === 'movie').slice(0, 3)
+          : []
+        const favTv = wantTv
+          ? items.filter((i) => i.isFavorite && i.mediaType === 'tv').slice(0, 3)
+          : []
+        const recPromises = [
+          ...favMovies.map((f) => getRecommendations('movie', f.id).catch(() => [])),
+          ...favTv.map((f) => getRecommendations('tv', f.id).catch(() => [])),
+        ]
+        if (recPromises.length > 0) {
+          const recArrays = await Promise.all(recPromises)
           for (const recs of recArrays) {
             for (const r of recs) {
               if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
@@ -733,12 +748,35 @@ function PickPage() {
       // Discover query for variety. FIXED pages (no Math.random) so the pool
       // is identical across rounds; combined with score-descending sort and
       // seenIds filtering, this guarantees: round 0 shows the top-3 by score,
-      // round 1 the next-3, etc.
-      const [discoverPage1, discoverPage2] = await Promise.all([
-        discoverMovies({ ...baseFilter, page: 1 }),
-        discoverMovies({ ...baseFilter, page: 2 }),
-      ])
-      pool.push(...discoverPage1, ...discoverPage2)
+      // round 1 the next-3, etc. Movies + TV runs in parallel when mediaType
+      // is 'both'; only the matching side runs when restricted.
+      const wantMovie = mediaType === 'movie' || mediaType === 'both'
+      const wantTv    = mediaType === 'tv'    || mediaType === 'both'
+      // TV genres differ from movie genres (Action+Adventure merge, etc.),
+      // so translate the filter before hitting /discover/tv.
+      const tvFilter = {
+        ...baseFilter,
+        genres:        moviesToTvGenres(baseFilter.genres),
+        withoutGenres: moviesToTvGenres(baseFilter.withoutGenres),
+        runtimeMin: undefined,   // runtime is per-episode for TV, not series
+        runtimeMax: undefined,
+        familyFriendly: false,   // MPAA certs are movie-only
+      }
+      const discoverPromises = []
+      if (wantMovie) {
+        discoverPromises.push(
+          discoverMovies({ ...baseFilter, page: 1 }),
+          discoverMovies({ ...baseFilter, page: 2 }),
+        )
+      }
+      if (wantTv) {
+        discoverPromises.push(
+          discoverTv({ ...tvFilter, page: 1 }),
+          discoverTv({ ...tvFilter, page: 2 }),
+        )
+      }
+      const discoverResults = await Promise.all(discoverPromises)
+      for (const arr of discoverResults) pool.push(...arr)
 
       // Dedupe + skip seen/watched + ENFORCE rating floor client-side
       // (defense-in-depth — sometimes TMDb returns just-below-threshold items)
@@ -750,13 +788,23 @@ function PickPage() {
 
       // If too few, fetch deterministic pages 3+4 and also widen OBSCURITY
       // (vote_count) — but never the rating floor. Pages stay fixed so the
-      // expanded pool is also stable across rounds.
+      // expanded pool is also stable across rounds. Honors mediaType too.
       if (pool.length < 3) {
-        const [relaxed1, relaxed2] = await Promise.all([
-          discoverMovies({ ...baseFilter, minVoteCount: 100, page: 3 }),
-          discoverMovies({ ...baseFilter, minVoteCount: 100, page: 4 }),
-        ])
-        const extras = [...relaxed1, ...relaxed2].filter((m) =>
+        const relaxedPromises = []
+        if (wantMovie) {
+          relaxedPromises.push(
+            discoverMovies({ ...baseFilter, minVoteCount: 100, page: 3 }),
+            discoverMovies({ ...baseFilter, minVoteCount: 100, page: 4 }),
+          )
+        }
+        if (wantTv) {
+          relaxedPromises.push(
+            discoverTv({ ...tvFilter, minVoteCount: 100, page: 3 }),
+            discoverTv({ ...tvFilter, minVoteCount: 100, page: 4 }),
+          )
+        }
+        const relaxedResults = await Promise.all(relaxedPromises)
+        const extras = relaxedResults.flat().filter((m) =>
           (m.rating ?? 0) >= HIGH_RATING_FLOOR &&
           !watchedIds.has(m.id) && !seenIds.has(m.id) && !pool.some((p) => p.id === m.id)
         )
@@ -837,7 +885,7 @@ function PickPage() {
   }
 
   function reset() {
-    setMoods([]); setOccasion(null); setEra('any'); setLength('any')
+    setMoods([]); setOccasion(null); setMediaType('both'); setEra('any'); setLength('any')
     setPace(50); setAvoidIds(new Set()); setPickedThemes(new Set())
     setLanguages(new Set()); setPrompt(''); setSimilarTo(null)
     setSimilarQuery(''); setSimilarResults([])
@@ -935,7 +983,10 @@ function PickPage() {
               pickedThemes={pickedThemes}
             />
 
-            {/* ── PRIMARY 2 — Hashtags / themes ── */}
+            {/* ── PRIMARY 2 — Media type filter ── */}
+            <MediaTypeSection mediaType={mediaType} setMediaType={setMediaType} />
+
+            {/* ── PRIMARY 3 — Hashtags / themes ── */}
             <ThemesSection
               moods={moods}
               occasion={occasion}
@@ -1350,6 +1401,54 @@ function ReferenceSection({
 // ThemesSection — wraps ThemeChips in a quieter panel that matches the
 // ReferenceSection's visual rhythm without competing for attention.
 // ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+// MediaTypeSection — primary filter selecting movies, TV, or both.
+// Sits between Reference and Themes. Compact: just a label + 3 segmented
+// chips, since the choice is binary-ish and shouldn't take a full panel.
+// ─────────────────────────────────────────────────────────────────────
+function MediaTypeSection({ mediaType, setMediaType }) {
+  const options = [
+    { value: 'both',  label: 'Both' },
+    { value: 'movie', label: 'Movies' },
+    { value: 'tv',    label: 'TV series' },
+  ]
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut', delay: 0.03 }}
+      className="relative px-4 sm:px-5 lg:px-6 py-3 sm:py-3.5 rounded-3xl bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent border border-white/10 shadow-md shadow-black/20 flex items-center justify-between gap-3 flex-wrap"
+    >
+      <div className="flex items-baseline gap-2">
+        <h2 className="text-base sm:text-lg font-bold">Show me</h2>
+        <span className="text-xs text-neutral-500 dark:text-white/40">
+          Movies, TV, or both
+        </span>
+      </div>
+      <div className="flex gap-1.5">
+        {options.map((opt) => {
+          const active = mediaType === opt.value
+          return (
+            <motion.button
+              key={opt.value}
+              onClick={() => setMediaType(opt.value)}
+              whileHover={{ scale: active ? 1 : 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              className={`px-3.5 py-1.5 rounded-2xl text-sm font-medium transition-colors ${
+                active
+                  ? 'bg-gradient-to-br from-brand/15 to-brand/5 text-brand border border-brand/30 shadow-sm shadow-brand/10'
+                  : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70'
+              }`}
+            >
+              {opt.label}
+            </motion.button>
+          )
+        })}
+      </div>
+    </motion.div>
+  )
+}
+
 function ThemesSection({ moods, occasion, similarTo, pickedThemes, onToggle }) {
   return (
     <motion.div

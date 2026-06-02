@@ -641,6 +641,13 @@ function PickPage() {
   function changeMediaType(newType) {
     if (newType === mediaType) return
     userInitiatedMediaChange.current = true
+    // Clear seenIds so the new media type yields a FRESH top-3 by score,
+    // not the leftovers after the previous type's seen-set was applied.
+    // Otherwise switching Movies -> TV would surface lower-scoring picks
+    // because the highest scorers might be flagged as "already seen" from
+    // the previous round (especially in Both mode where IDs can collide
+    // with the previously shown movies).
+    setSeenIds(new Set())
     setMediaType(newType)
   }
   useEffect(() => {
@@ -892,6 +899,10 @@ function PickPage() {
       pool = pool
         .filter((m) => (m.rating ?? 0) >= HIGH_RATING_FLOOR)
         .filter((m) => mediaType === 'both' || m.mediaType === mediaType)
+        // Never recommend the reference itself back — Avatar's keywords +
+        // genres make Avatar a perfect match against the discover query, so
+        // without this it ends up in its own picks.
+        .filter((m) => !similarTo?.id || m.id !== similarTo.id)
         .filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
         .filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
 

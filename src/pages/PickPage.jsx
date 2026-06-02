@@ -1118,7 +1118,6 @@ function PickPage() {
                 />
               </div>
               <div className="md:col-span-3 space-y-3 lg:space-y-4">
-                <MediaTypeSection mediaType={mediaType} setMediaType={setMediaType} />
                 <FineTuneToggle open={advancedOpen} summary={advancedSummary} onToggle={() => setAdvancedOpen((v) => !v)}>
                   <FineTune
                     moods={moods} occasion={occasion}

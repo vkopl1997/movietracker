@@ -1052,7 +1052,11 @@ function PickPage() {
   }, [moods, occasion, era, length, avoidIds, languages, prompt, pace])
 
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5">
+    <main className={`mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5 ${
+      layoutVariant === 'threecol' ? 'max-w-7xl' :
+      layoutVariant === 'twocol' || layoutVariant === 'hero' ? 'max-w-6xl' :
+      'max-w-4xl'
+    }`}>
       <header className="text-center mb-3 lg:mb-4">
         <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
           <span className="h-px w-6 sm:w-8 bg-brand/40" />
@@ -1228,12 +1232,12 @@ function FormLayoutDispatcher({ layout, reference, mediaTypeBlock, themes, fineT
         key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="space-y-3 lg:space-y-4"
       >
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
-          <div className="lg:col-span-7 space-y-3 lg:space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
+          <div className="md:col-span-7 space-y-3 lg:space-y-4">
             {reference}
             {themes}
           </div>
-          <div className="lg:col-span-5 space-y-3 lg:space-y-4">
+          <div className="md:col-span-5 space-y-3 lg:space-y-4">
             {mediaTypeBlock}
             {fineTune}
           </div>
@@ -1252,9 +1256,9 @@ function FormLayoutDispatcher({ layout, reference, mediaTypeBlock, themes, fineT
         className="space-y-3 lg:space-y-4"
       >
         {/* Hero row: reference takes most width, media-type pills sit beside it */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
-          <div className="lg:col-span-9">{reference}</div>
-          <div className="lg:col-span-3 space-y-3 lg:space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
+          <div className="md:col-span-9">{reference}</div>
+          <div className="md:col-span-3 space-y-3 lg:space-y-4">
             {mediaTypeBlock}
             {fineTune}
           </div>
@@ -1273,10 +1277,10 @@ function FormLayoutDispatcher({ layout, reference, mediaTypeBlock, themes, fineT
         key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="space-y-3 lg:space-y-4"
       >
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
-          <div className="lg:col-span-4 space-y-3 lg:space-y-4">{reference}</div>
-          <div className="lg:col-span-5 space-y-3 lg:space-y-4">{themes}</div>
-          <div className="lg:col-span-3 space-y-3 lg:space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4">
+          <div className="md:col-span-4 space-y-3 lg:space-y-4">{reference}</div>
+          <div className="md:col-span-5 space-y-3 lg:space-y-4">{themes}</div>
+          <div className="md:col-span-3 space-y-3 lg:space-y-4">
             {mediaTypeBlock}
             {fineTune}
           </div>

@@ -2291,14 +2291,16 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
             <ExhaustedState key="exhausted" className="md:col-span-12" />
           ) : picks?.length > 0 ? (
             <>
-              {/* FEATURED (top pick) — col-span-8 of the right column */}
+              {/* FEATURED (top pick) — col-span-8 of the right column.
+                  max-w-[80%] mx-auto shrinks the actual card to 80% of the
+                  column width so it sits at the proportions the user wants. */}
               <motion.div
                 key={`featured-${round}-${picks[0].id}`}
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-                className="md:col-span-8 relative group will-change-transform"
+                className="md:col-span-8 w-full md:max-w-[80%] md:mx-auto relative group will-change-transform"
               >
                 <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-brand text-black text-[10px] font-bold tracking-wider uppercase shadow-lg">
                   ★ Top pick
@@ -2340,7 +2342,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.08 + idx * 0.06 }}
-                    className="relative group will-change-transform"
+                    className="w-full md:max-w-[80%] md:mx-auto relative group will-change-transform"
                   >
                     <button
                       onClick={() => onDismiss(pick)}

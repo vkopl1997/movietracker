@@ -659,6 +659,29 @@ function PickPage() {
       keywords = ids.filter(Boolean)
     }
 
+    // ── Cross-type bridge ─────────────────────────────────────────────
+    // When the user picks a reference (movie OR tv), fetch ITS TMDb
+    // keywords and add them to the discover query. This is what makes
+    // "Breaking Bad + Movies" actually return movies that share BB's
+    // themes (El Camino, Pulp Fiction, Reservoir Dogs…) — without it,
+    // the TV reference would just be dropped when the user wants movies.
+    //
+    // We merge the ref's keywords with the user's explicit theme picks
+    // and switch the discover query to OR mode. OR is the right call
+    // here: the explicit pick set + ref's set together describe "any of
+    // these signals", not "all". Scoring sorts the broader pool down to
+    // the top 3.
+    let keywordsMode = 'and'
+    if (similarTo?.id) {
+      const refKws = await getKeywords(similarTo.mediaType || 'movie', similarTo.id)
+        .catch(() => [])
+      const refKwIds = refKws.slice(0, 8).map((k) => k.id)
+      if (refKwIds.length > 0) {
+        keywords = [...new Set([...keywords, ...refKwIds])]
+        keywordsMode = 'or'
+      }
+    }
+
     // Pace [#9] → sort axis bias
     let sortBy = SORT_ROTATION[sortIdx % SORT_ROTATION.length]
     if (occasionOpt.sortBy) sortBy = occasionOpt.sortBy
@@ -675,6 +698,7 @@ function PickPage() {
         ...downGenreIds,
       ],
       keywords,
+      keywordsMode,
       withLanguages: [...languages],
       familyFriendly: !!occasionOpt.familyFriendly,
       minRating: Math.max(minRating, occasionOpt.minRating || 0),

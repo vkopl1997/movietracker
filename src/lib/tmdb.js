@@ -178,10 +178,15 @@ export function moviesToTvGenres(movieGenreIds = []) {
 // both with one filter object (after translating genres via the helper
 // above). TMDb uses first_air_date.* instead of primary_release_date.*,
 // and runtime / certification don't apply at the series level.
+//
+// keywordsMode: 'and' (default, joins with ',' → intersection) or 'or'
+// (joins with '|' → union). Use 'or' when you want a broad bridge from
+// a reference's keyword set; use 'and' (default) for explicit theme picks.
 export async function discoverTv({
   genres = [],
   withoutGenres = [],
   keywords = [],
+  keywordsMode = 'and',
   withLanguages = [],
   minRating = 6.5,
   minVoteCount = 200,
@@ -193,7 +198,7 @@ export async function discoverTv({
   const params = new URLSearchParams()
   if (genres.length)        params.set('with_genres', genres.join(','))
   if (withoutGenres.length) params.set('without_genres', withoutGenres.join(','))
-  if (keywords.length)      params.set('with_keywords', keywords.join(','))
+  if (keywords.length)      params.set('with_keywords', keywords.join(keywordsMode === 'or' ? '|' : ','))
   if (withLanguages.length) params.set('with_original_language', withLanguages.join('|'))
   if (Number.isFinite(releaseBefore)) params.set('first_air_date.lte', `${releaseBefore}-12-31`)
   if (Number.isFinite(releaseAfter))  params.set('first_air_date.gte', `${releaseAfter}-01-01`)
@@ -212,6 +217,7 @@ export async function discoverMovies({
   genres = [],              // array of TMDb genre ids to include
   withoutGenres = [],       // array of TMDb genre ids to EXCLUDE
   keywords = [],            // array of TMDb keyword ids
+  keywordsMode = 'and',     // 'and' (intersection, ',') or 'or' (union, '|')
   withLanguages = [],       // array of ISO-639-1 language codes (e.g. 'ko', 'ja', 'fr')
   runtimeMin,
   runtimeMax,
@@ -226,7 +232,7 @@ export async function discoverMovies({
   const params = new URLSearchParams()
   if (genres.length)               params.set('with_genres', genres.join(','))
   if (withoutGenres.length)        params.set('without_genres', withoutGenres.join(','))
-  if (keywords.length)             params.set('with_keywords', keywords.join(','))
+  if (keywords.length)             params.set('with_keywords', keywords.join(keywordsMode === 'or' ? '|' : ','))
   if (withLanguages.length)        params.set('with_original_language', withLanguages.join('|'))
   if (Number.isFinite(runtimeMin)) params.set('with_runtime.gte', String(runtimeMin))
   if (Number.isFinite(runtimeMax)) params.set('with_runtime.lte', String(runtimeMax))

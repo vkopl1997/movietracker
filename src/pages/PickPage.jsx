@@ -26,6 +26,7 @@ import {
   discoverMovies,
   discoverTv,
   moviesToTvGenres,
+  tvGenresToMovieGenres,
   searchMulti,
   findKeywordId,
   searchKeywords,
@@ -614,6 +615,21 @@ function PickPage() {
     })
   }
 
+  // Inline mediaType switcher in ResultsView calls this. The ref flag lets
+  // the useEffect below distinguish a user click from a session-storage
+  // restore (which also sets mediaType but should NOT re-run generate).
+  const userInitiatedMediaChange = useRef(false)
+  function changeMediaType(newType) {
+    if (newType === mediaType) return
+    userInitiatedMediaChange.current = true
+    setMediaType(newType)
+  }
+  useEffect(() => {
+    if (!userInitiatedMediaChange.current) return
+    userInitiatedMediaChange.current = false
+    if (hasPicked) generate()
+  }, [mediaType]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function generate() {
     if (!canGenerate) return
     // Don't clear picks/topScore here — keep the previous picks (or the
@@ -632,7 +648,19 @@ function PickPage() {
     // Merge mood genres from all selected moods (deduped)
     const moodGenres = [...new Set(moods.flatMap((m) => MOODS.find((x) => x.value === m)?.genres || []))]
     // Boost from prompt
-    const genres = [...new Set([...moodGenres, ...promptFilters.boostGenres])]
+    let genres = [...new Set([...moodGenres, ...promptFilters.boostGenres])]
+
+    // Reference's genre family — this is what stops "BB + Movies" from
+    // returning random documentaries that share a keyword. We use the ref's
+    // genres ONLY when the user hasn't set a mood (mood would override). If
+    // ref is a TV show but we're querying movies, translate via the helper
+    // so e.g. BB's [80 Crime, 18 Drama] map cleanly across.
+    if (genres.length === 0 && similarTo?.genreIds?.length > 0) {
+      const refGenresAsMovie = similarTo.mediaType === 'tv'
+        ? tvGenresToMovieGenres(similarTo.genreIds)
+        : similarTo.genreIds
+      genres = [...refGenresAsMovie]
+    }
 
     // Library taste profile bias [#1]: nudge minRating upward if user has high standards
     let minRating = HIGH_RATING_FLOOR
@@ -789,9 +817,20 @@ function PickPage() {
       const wantTv    = mediaType === 'tv'    || mediaType === 'both'
       // TV genres differ from movie genres (Action+Adventure merge, etc.),
       // so translate the filter before hitting /discover/tv.
+      // TV genres for the query. If the ref is a TV show and we have no
+      // mood, prefer the ref's native TV genres directly — no round-trip
+      // translation loss. Otherwise translate from movie-side genres.
+      let tvSideGenres = moviesToTvGenres(baseFilter.genres)
+      if (
+        moodGenres.length === 0 &&
+        similarTo?.mediaType === 'tv' &&
+        similarTo?.genreIds?.length > 0
+      ) {
+        tvSideGenres = [...similarTo.genreIds]
+      }
       const tvFilter = {
         ...baseFilter,
-        genres:        moviesToTvGenres(baseFilter.genres),
+        genres:        tvSideGenres,
         withoutGenres: moviesToTvGenres(baseFilter.withoutGenres),
         runtimeMin: undefined,   // runtime is per-episode for TV, not series
         runtimeMax: undefined,
@@ -991,6 +1030,8 @@ function PickPage() {
             occasionLabel={OCCASIONS.find((o) => o.value === occasion)?.label}
             similarTo={similarTo}
             pickedThemes={pickedThemes}
+            mediaType={mediaType}
+            onChangeMediaType={changeMediaType}
             seenCount={seenIds.size}
             tasteProfile={tasteProfile}
             topScore={topScore}
@@ -1358,7 +1399,7 @@ function ReferenceSection({
               {similarResults.map((m) => (
                 <button
                   key={`${m.mediaType}-${m.id}`}
-                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType }); setSimilarQuery(''); setSimilarOpen(false) }}
+                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); setSimilarQuery(''); setSimilarOpen(false) }}
                   className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left transition"
                 >
                   {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded shrink-0" />}
@@ -1392,7 +1433,7 @@ function ReferenceSection({
               {themeMovies.map((m) => (
                 <motion.button
                   key={m.id}
-                  onClick={() => setSimilarTo({ id: m.id, title: m.title })}
+                  onClick={() => setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType || 'movie', genreIds: m.genreIds || [] })}
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.94 }}
                   className="px-3 py-1.5 rounded-full text-xs bg-brand/10 hover:bg-brand/20 border border-brand/30 hover:border-brand/50 text-brand transition"
@@ -1415,7 +1456,7 @@ function ReferenceSection({
               {userFavorites.slice(0, 5).map((f) => (
                 <motion.button
                   key={f.id}
-                  onClick={() => setSimilarTo({ id: f.id, title: f.title })}
+                  onClick={() => setSimilarTo({ id: f.id, title: f.title, mediaType: f.mediaType, genreIds: f.genreIds || [] })}
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.94 }}
                   className="px-3 py-1.5 rounded-full text-xs bg-white/[0.06] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70 transition"
@@ -2073,7 +2114,7 @@ function SmallChips({ options, value, onSelect }) {
   )
 }
 
-function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, similarTo, pickedThemes, seenCount, tasteProfile, topScore, topGenres, onPickAgain, onReset, onDismiss }) {
+function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, similarTo, pickedThemes, mediaType, onChangeMediaType, seenCount, tasteProfile, topScore, topGenres, onPickAgain, onReset, onDismiss }) {
   const topGenreLabels = (topGenres || [])
     .slice(0, 3)
     .map((id) => GENRE_NAMES[id])
@@ -2132,6 +2173,13 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       <p className="text-center mb-2 text-xs sm:text-sm text-neutral-500 dark:text-white/60">
         <ResultsHeader />
       </p>
+      {/* Inline media-type switcher — change Movies/TV/Both right here and
+          the picks regenerate. Doesn't disrupt the score-line slot below. */}
+      <ResultsMediaTypeSwitcher
+        mediaType={mediaType}
+        onChange={onChangeMediaType}
+        disabled={loading}
+      />
       {/* Score-line area is ALWAYS reserved (~44px) so the buttons below
           don't jump up when picks empty and the bar disappears. In exhausted
           state the slot is empty but the vertical rhythm stays identical. */}
@@ -2281,6 +2329,38 @@ function SkeletonPickCard({ index = 0 }) {
 // colour BOTH tween smoothly when topScore changes from one round to the
 // next, so re-picking feels reactive rather than a flat number swap.
 // Score → hue: 0=red, 60=yellow, 120=green (HSL is naturally a gradient).
+// Compact inline switcher that lives in the results view, right under the
+// "Picks like X" line. Changing it triggers an immediate regenerate so the
+// user can flip between movies / TV / both without going back to the form.
+function ResultsMediaTypeSwitcher({ mediaType, onChange, disabled }) {
+  const options = [
+    { value: 'both',  label: 'Both' },
+    { value: 'movie', label: 'Movies' },
+    { value: 'tv',    label: 'TV' },
+  ]
+  return (
+    <div className="flex justify-center gap-1.5 mb-2">
+      {options.map((opt) => {
+        const active = mediaType === opt.value
+        return (
+          <button
+            key={opt.value}
+            onClick={() => onChange?.(opt.value)}
+            disabled={disabled}
+            className={`px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide transition disabled:opacity-50 disabled:cursor-wait ${
+              active
+                ? 'bg-gradient-to-br from-brand/20 to-brand/10 text-brand border border-brand/40'
+                : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-500 dark:text-white/50 hover:text-white/80'
+            }`}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function scoreToColor(score) {
   const clamped = Math.max(0, Math.min(100, score))
   const hue = (clamped / 100) * 120

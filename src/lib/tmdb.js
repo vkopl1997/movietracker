@@ -174,6 +174,31 @@ export function moviesToTvGenres(movieGenreIds = []) {
   )]
 }
 
+// Reverse direction: TV → movie. Used when the user picks a TV show as
+// reference but asks for Movies — we translate its genres so the movie
+// discover query gets the same genre context. TMDb's merged TV genres
+// expand back to their movie components.
+const TV_TO_MOVIE_PRIMARY = {
+  10759: 28,    // Action & Adventure  -> Action (primary; we pick one to avoid AND-ing too many)
+  10765: 878,   // Sci-Fi & Fantasy    -> Sci-Fi
+  10768: 10752, // War & Politics      -> War
+}
+const NO_MOVIE_EQUIVALENT = new Set([
+  10762, // Kids
+  10763, // News
+  10764, // Reality
+  10766, // Soap
+  10767, // Talk
+])
+export function tvGenresToMovieGenres(tvGenreIds = []) {
+  return [...new Set(
+    tvGenreIds.flatMap((id) => {
+      if (NO_MOVIE_EQUIVALENT.has(id)) return []
+      return [TV_TO_MOVIE_PRIMARY[id] || id]
+    })
+  )]
+}
+
 // TV-side counterpart to discoverMovies. Same shape so PickPage can hit
 // both with one filter object (after translating genres via the helper
 // above). TMDb uses first_air_date.* instead of primary_release_date.*,

@@ -1613,9 +1613,11 @@ function ThemeChips({ moods, occasion, similarTo, pickedThemes, onToggle }) {
   const [showAll, setShowAll] = useState(false)
 
   // ── Live TMDb keyword search ───────────────────────────────────────
+  // No floating dropdown — the search results just replace the suggested
+  // chips inline so they can never overlap and steal clicks from the chips
+  // below. Cleaner UX too: hit a match in place, watch it move to "Your picks".
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
-  const [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => {
     const q = searchQuery.trim()
     if (!q) { setSearchResults([]); return }
@@ -1651,11 +1653,29 @@ function ThemeChips({ moods, occasion, similarTo, pickedThemes, onToggle }) {
     () => rankThemes(THEME_BANK, moods, occasion, pickedThemes),
     [moods, occasion, pickedThemes]
   )
-  // Picks live in their own row — they're not duplicated in suggestions.
-  const pickedList = ranked.filter((t) => pickedThemes.has(t.name))
+  // Picks live in their own pinned row. CRITICAL: include picks that aren't
+  // in the curated bank (the user picked them via TMDb search or a movie's
+  // keywords row) — otherwise those would silently disappear after click.
+  const pickedFromBank = ranked.filter((t) => pickedThemes.has(t.name))
+  const pickedBankNames = new Set(pickedFromBank.map((t) => t.name))
+  const pickedFromElsewhere = Array.from(pickedThemes)
+    .filter((name) => !pickedBankNames.has(name))
+    .map((name) => ({ name, cat: null }))
+  const pickedList = [...pickedFromBank, ...pickedFromElsewhere]
+
   const unpicked   = ranked.filter((t) => !pickedThemes.has(t.name))
   const suggested  = unpicked.slice(0, SUGGESTED_COUNT)
   const remaining  = unpicked.slice(SUGGESTED_COUNT)
+
+  // When the user is typing a search, show TMDb matches in the suggestions
+  // slot instead of the bank's popular picks. Excludes ones already picked
+  // (they live in the pinned row above).
+  const isSearching = searchQuery.trim().length > 0
+  const searchChips = searchResults
+    .filter((kw) => !pickedThemes.has(kw.name))
+    .slice(0, SUGGESTED_COUNT)
+    .map((kw) => ({ name: kw.name, cat: null }))
+  const displayChips = isSearching ? searchChips : suggested
 
   // Movie-keywords minus ones already picked, so we don't show duplicates
   const visibleMovieKeywords = movieKeywords.filter((k) => !pickedThemes.has(k.name))
@@ -1704,44 +1724,16 @@ function ThemeChips({ moods, occasion, similarTo, pickedThemes, onToggle }) {
       </div>
 
       {/* SEARCH — live-query the full TMDb keyword catalogue (~30k entries).
-          The curated bank below is the highlight reel; this is the fallback
-          for anything specific the user wants that isn't in our 99. */}
-      <div className="relative">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => setSearchOpen(true)}
-          onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-          placeholder="Search any theme…  e.g. dream, samurai, mafia"
-          className="w-full px-4 py-2.5 rounded-2xl text-sm bg-white/[0.05] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.08] transition"
-        />
-        {searchOpen && searchResults.length > 0 && (
-          <div className="absolute z-30 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
-            {searchResults.map((kw) => {
-              const already = pickedThemes.has(kw.name)
-              return (
-                <button
-                  key={kw.id}
-                  onMouseDown={() => {
-                    if (!already) onToggle(kw.name)
-                    setSearchQuery('')
-                    setSearchOpen(false)
-                  }}
-                  className={`w-full text-left px-3 py-2 hover:bg-white/5 transition flex items-center justify-between gap-2 ${already ? 'opacity-50' : ''}`}
-                >
-                  <span className="text-sm">
-                    <span className="text-brand">#</span>{kw.name.replace(/ /g, '-')}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wider text-neutral-500">
-                    {already ? 'picked' : 'add'}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
+          Results are rendered INLINE in place of the suggested chips below,
+          not as a floating dropdown, so they can never overlap and intercept
+          clicks. */}
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="Search any theme…  e.g. dream, samurai, mafia"
+        className="w-full px-4 py-2.5 rounded-2xl text-sm bg-white/[0.05] border border-white/10 placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.08] transition"
+      />
 
       {/* REFERENCE-MOVIE KEYWORDS — when the user picked a "feel like" movie,
           surface TMDb's own keywords for that movie. Bridges the two primary
@@ -1824,30 +1816,41 @@ function ThemeChips({ moods, occasion, similarTo, pickedThemes, onToggle }) {
         )}
       </AnimatePresence>
 
-      {/* Suggested chips — animated reorder as mood/occasion change */}
-      <div className="flex flex-wrap gap-1.5">
-        <AnimatePresence initial={false}>
-          {suggested.map((t) => (
-            <motion.button
-              key={t.name}
-              layout
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.85 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              onClick={() => onToggle(t.name)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.94 }}
-              className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70"
-            >
-              #{t.name.replace(/ /g, '-')}
-            </motion.button>
-          ))}
-        </AnimatePresence>
+      {/* Chips — popular themes when idle, TMDb search matches when typing.
+          No floating dropdown means no z-index overlap, no click intercept. */}
+      <div>
+        {isSearching && (
+          <div className="text-[10px] font-bold tracking-[0.18em] uppercase text-brand/80 mb-1.5">
+            {displayChips.length > 0
+              ? `${displayChips.length} match${displayChips.length === 1 ? '' : 'es'}`
+              : 'No matches — try a shorter word'}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          <AnimatePresence initial={false}>
+            {displayChips.map((t) => (
+              <motion.button
+                key={(isSearching ? 'q-' : 'b-') + t.name}
+                layout
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                onClick={() => onToggle(t.name)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.94 }}
+                className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70"
+              >
+                #{t.name.replace(/ /g, '-')}
+              </motion.button>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* "Show more" toggle reveals the rest grouped by category */}
-      {remaining.length > 0 && (
+      {/* "Show more" toggle reveals the rest grouped by category — hidden when
+          the user is searching since the popular bank isn't on screen anyway. */}
+      {!isSearching && remaining.length > 0 && (
         <button
           onClick={() => setShowAll((v) => !v)}
           className="mt-1 text-[11px] text-brand/80 hover:text-brand transition inline-flex items-center gap-1"

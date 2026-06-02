@@ -685,13 +685,12 @@ function PickPage() {
       const boostedIds = new Set()
 
       // Explicit mode = the user gave a direct signal ("feel like Heat",
-      // theme = heist). When true, we tighten the pool so first picks honor
-      // that signal instead of being diluted by broad discover results.
+      // theme = heist). When true, the favorites' recommendation pool is
+      // skipped so it doesn't dilute the explicit signal. Decision is now
+      // signal-based, not round-based, so the pool stays identical across
+      // Pick again clicks — which is what makes scores monotonically
+      // decrease as the user walks down the sorted list.
       const explicitMode = !!similarTo?.id || pickedThemes.size > 0
-      // Strict mode = first round (no Pick again yet) AND explicit. Subsequent
-      // rounds can widen to keep variety — but the first three cards stay
-      // tightly aligned with what the user explicitly asked for.
-      const strictMode = explicitMode && round === 0
 
       // [#3] Similar-to reference: pull 2 pages of recommendations so the
       // pool is dominated by movies adjacent to the user's pick.
@@ -708,11 +707,11 @@ function PickPage() {
         }
       }
 
-      // [#1] Auto-boost from user's top 3 favorited MOVIES — but ONLY when
-      // they haven't been explicit. The user's library is great context for
-      // a generic "pick something", but it would water down "feel like Heat".
-      // After round 0 we re-enable it even in explicit mode for variety.
-      if (!strictMode) {
+      // [#1] Auto-boost from user's top 3 favorited MOVIES — only when no
+      // explicit signal was given. We do NOT re-enable it on later rounds
+      // in explicit mode any more — adding it later was making the pool
+      // grow between rounds, which broke score monotonicity.
+      if (!explicitMode) {
         const topFavMovies = items
           .filter((i) => i.isFavorite && i.mediaType === 'movie')
           .slice(0, 3)
@@ -731,17 +730,15 @@ function PickPage() {
         }
       }
 
-      // Discover query for variety. In strict-explicit mode we still run it
-      // (it's already keyword/genre filtered) but only one page so similar-to
-      // recommendations stay dominant.
-      const pageA = Math.floor(Math.random() * 3) + 1
-      const pageB = pageA + 3
-      const discoverPages = strictMode
-        ? [discoverMovies({ ...baseFilter, page: pageA })]
-        : [discoverMovies({ ...baseFilter, page: pageA }),
-           discoverMovies({ ...baseFilter, page: pageB })]
-      const discoverResults = await Promise.all(discoverPages)
-      for (const arr of discoverResults) pool.push(...arr)
+      // Discover query for variety. FIXED pages (no Math.random) so the pool
+      // is identical across rounds; combined with score-descending sort and
+      // seenIds filtering, this guarantees: round 0 shows the top-3 by score,
+      // round 1 the next-3, etc.
+      const [discoverPage1, discoverPage2] = await Promise.all([
+        discoverMovies({ ...baseFilter, page: 1 }),
+        discoverMovies({ ...baseFilter, page: 2 }),
+      ])
+      pool.push(...discoverPage1, ...discoverPage2)
 
       // Dedupe + skip seen/watched + ENFORCE rating floor client-side
       // (defense-in-depth — sometimes TMDb returns just-below-threshold items)
@@ -751,19 +748,19 @@ function PickPage() {
         .filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
         .filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
 
-      // If too few, widen OBSCURITY (vote_count) but never the rating floor
+      // If too few, fetch deterministic pages 3+4 and also widen OBSCURITY
+      // (vote_count) — but never the rating floor. Pages stay fixed so the
+      // expanded pool is also stable across rounds.
       if (pool.length < 3) {
-        const relaxed = await discoverMovies({
-          ...baseFilter,
-          minRating: HIGH_RATING_FLOOR,   // unchanged
-          minVoteCount: 100,              // smaller indie films too
-          page: Math.floor(Math.random() * 4) + 1,
-        })
-        const extra = relaxed.filter((m) =>
+        const [relaxed1, relaxed2] = await Promise.all([
+          discoverMovies({ ...baseFilter, minVoteCount: 100, page: 3 }),
+          discoverMovies({ ...baseFilter, minVoteCount: 100, page: 4 }),
+        ])
+        const extras = [...relaxed1, ...relaxed2].filter((m) =>
           (m.rating ?? 0) >= HIGH_RATING_FLOOR &&
           !watchedIds.has(m.id) && !seenIds.has(m.id) && !pool.some((p) => p.id === m.id)
         )
-        pool = [...pool, ...extra]
+        pool = [...pool, ...extras]
       }
 
       if (pool.length === 0) {

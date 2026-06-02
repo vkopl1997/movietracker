@@ -1047,19 +1047,23 @@ function PickPage() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5">
-      <header className="text-center mb-3 lg:mb-4">
-        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
-          <span className="h-px w-6 sm:w-8 bg-brand/40" />
-          AI PICK
-          <span className="h-px w-6 sm:w-8 bg-brand/40" />
-        </div>
-        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
-          What should I watch?
-        </h1>
-        <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
-          Start with a movie you love — or skip and pick by theme.
-        </p>
-      </header>
+      {/* Page header hides when results are showing — ResultsView moves
+          the heading into its own left sidebar so we don't show it twice. */}
+      {!hasPicked && (
+        <header className="text-center mb-3 lg:mb-4">
+          <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
+            <span className="h-px w-6 sm:w-8 bg-brand/40" />
+            AI PICK
+            <span className="h-px w-6 sm:w-8 bg-brand/40" />
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
+            What should I watch?
+          </h1>
+          <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
+            Start with a movie you love — or skip and pick by theme.
+          </p>
+        </header>
+      )}
 
       <AnimatePresence mode="wait">
         {hasPicked ? (
@@ -2209,35 +2213,68 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
+      className="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-6 items-start"
     >
-      <p className="text-center mb-2 text-xs sm:text-sm text-neutral-500 dark:text-white/60">
-        <ResultsHeader />
-      </p>
-      {/* Inline media-type switcher — change Movies/TV/Both right here and
-          the picks regenerate. Doesn't disrupt the score-line slot below. */}
-      <ResultsMediaTypeSwitcher
-        mediaType={mediaType}
-        onChange={onChangeMediaType}
-        disabled={loading}
-      />
-      {/* Score-line area is ALWAYS reserved (~44px) so the buttons below
-          don't jump up when picks empty and the bar disappears. In exhausted
-          state the slot is empty but the vertical rhythm stays identical. */}
-      <div className="mb-3 lg:mb-4 min-h-[44px] flex flex-col justify-center">
+      {/* ─── LEFT SIDEBAR (col-span-4): heading + meta + actions ─────── */}
+      <aside className="md:col-span-4 md:sticky md:top-4 self-start space-y-3">
+        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase flex items-center gap-2">
+          <span className="h-px w-6 bg-brand/40" />
+          AI PICK
+        </div>
+        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] leading-tight">
+          What should I watch?
+        </h1>
+        <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
+          Start with a movie you love — or skip and pick by theme.
+        </p>
+
+        <p className="text-sm text-neutral-500 dark:text-white/70 pt-1 italic">
+          <ResultsHeader />
+        </p>
+
         {showScoreLine && (
-          <>
+          <div className="space-y-1.5 pt-1">
             {topScore != null && <ScoreBar score={topScore} />}
             {(tasteProfile || topGenreLabels.length > 0) && (
-              <p className="text-center mt-2 text-[11px] text-neutral-400 dark:text-white/40">
+              <p className="text-[11px] text-neutral-400 dark:text-white/40">
                 {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
                 {topGenreLabels.length > 0 && (
                   <> · weights {topGenreLabels.join(', ')}</>
                 )}
               </p>
             )}
-          </>
+          </div>
         )}
-      </div>
+
+        <div className="pt-1">
+          <ResultsMediaTypeSwitcher
+            mediaType={mediaType}
+            onChange={onChangeMediaType}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2.5 pt-2">
+          <motion.button onClick={onPickAgain} disabled={loading}
+            whileHover={loading ? {} : { scale: 1.02 }} whileTap={loading ? {} : { scale: 0.97 }}
+            className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+          >
+            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+          </motion.button>
+          <button onClick={onReset} disabled={loading} className="text-base text-neutral-500 dark:text-white/45 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50 text-center">
+            or start over with a different mood
+          </button>
+        </div>
+
+        {picks?.length > 0 && seenCount > 0 && (
+          <p className="text-[10px] text-neutral-400 dark:text-white/30 pt-1">
+            {seenCount} {seenCount === 1 ? 'title' : 'titles'} excluded from this session.
+          </p>
+        )}
+      </aside>
+
+      {/* ─── RIGHT (col-span-8): the cards ─────────────────────────── */}
+      <div className="md:col-span-8">
 
       {/* Hero + sidebar results: the top pick (highest score) is the
           FEATURED card on the left at ~3x size; the two alternatives
@@ -2246,13 +2283,15 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           visual system. Mobile collapses everything to a single column
           where the featured card stays full-width and alternatives sit
           beneath it. */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 mb-4 max-w-6xl mx-auto min-h-[280px] md:min-h-[420px]">
+      {/* Inner cards grid — now lives inside the right-hand col-span-8 of the
+          outer 12-col, so we redeclare its own 12-col grid for featured/alts. */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 min-h-[280px] md:min-h-[420px]">
         <AnimatePresence mode="wait">
           {picks?.length === 0 ? (
             <ExhaustedState key="exhausted" className="md:col-span-12" />
           ) : picks?.length > 0 ? (
             <>
-              {/* FEATURED (top pick) — col-span-8 */}
+              {/* FEATURED (top pick) — col-span-8 of the right column */}
               <motion.div
                 key={`featured-${round}-${picks[0].id}`}
                 initial={{ opacity: 0, scale: 0.96 }}
@@ -2329,36 +2368,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           ) : null}
         </AnimatePresence>
       </div>
-
-      {/* Results action row — width matches the form CTA (max-w-xs / 320px).
-          flex justify-between with w-[45%] on each button gives exactly the
-          45 / 10 / 45 split the user asked for (90% buttons + 10% gap).
-          Both buttons + the form CTA share one paint:
-            • Default: pale gold accent (bg-brand/20 -> brand/10 gradient,
-              brand-coloured text on dark surface)
-            • Hover: darker gold (full brand -> brand-dark gradient,
-              black text for contrast). */}
-      {/* Action row: Pick again is the primary action, full-width within the
-          max-w-xs container so it matches the form's "Find me something" CTA.
-          Start over is a tiny underlined text link directly below — discoverable
-          but visually secondary, signalling it as a reset action. */}
-      <div className="flex flex-col items-center max-w-xs mx-auto mb-1 gap-2.5">
-        <motion.button onClick={onPickAgain} disabled={loading}
-          whileHover={loading ? {} : { scale: 1.04 }} whileTap={loading ? {} : { scale: 0.96 }}
-          className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
-        >
-          {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
-        </motion.button>
-        <button onClick={onReset} disabled={loading} className="text-base text-neutral-500 dark:text-white/45 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50">
-          or start over with a different mood
-        </button>
-      </div>
-
-      {picks?.length > 0 && seenCount > 0 && (
-        <p className="text-center text-[11px] text-neutral-400 dark:text-white/40">
-          {seenCount} {seenCount === 1 ? 'movie' : 'movies'} excluded from future picks this session.
-        </p>
-      )}
+      </div>{/* /right column */}
     </motion.section>
   )
 }

@@ -904,6 +904,8 @@ function PickPage() {
             moods={moods}
             occasion={occasion}
             occasionLabel={OCCASIONS.find((o) => o.value === occasion)?.label}
+            similarTo={similarTo}
+            pickedThemes={pickedThemes}
             seenCount={seenIds.size}
             tasteProfile={tasteProfile}
             topScore={topScore}
@@ -1935,13 +1937,53 @@ function SmallChips({ options, value, onSelect }) {
   )
 }
 
-function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, seenCount, tasteProfile, topScore, topGenres, onPickAgain, onReset, onDismiss }) {
+function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, similarTo, pickedThemes, seenCount, tasteProfile, topScore, topGenres, onPickAgain, onReset, onDismiss }) {
   const topGenreLabels = (topGenres || [])
     .slice(0, 3)
     .map((id) => GENRE_NAMES[id])
     .filter(Boolean)
   // Only show the "Top match" / taste line when we have real picks on screen.
   const showScoreLine = picks?.length > 0 && (tasteProfile || topScore != null)
+
+  // ── Smart header ─────────────────────────────────────────────────────
+  // Picks no longer require mood+occasion (a reference movie or themes
+  // alone is enough), so the old "For a {mood} watch ({occasion}):" line
+  // would render as "For a watch ():". Now we describe whatever signals
+  // the user actually used.
+  const themeCount   = pickedThemes?.size || 0
+  const themesArr    = themeCount > 0 ? [...pickedThemes] : []
+  function ResultsHeader() {
+    if (moods.length > 0) {
+      return (
+        <>
+          For a <strong>{moods.join(' + ')}</strong> watch
+          {occasionLabel ? ` (${occasionLabel.toLowerCase()})` : ''}:
+        </>
+      )
+    }
+    if (similarTo) {
+      return (
+        <>
+          Picks like <strong>{similarTo.title}</strong>
+          {occasionLabel ? ` for ${occasionLabel.toLowerCase()}` : ''}:
+        </>
+      )
+    }
+    if (themeCount > 0) {
+      const shown = themesArr.slice(0, 3).map((t) => `#${t.replace(/ /g, '-')}`).join(' ')
+      return (
+        <>
+          Picks tagged <strong>{shown}</strong>
+          {themeCount > 3 ? <> +{themeCount - 3} more</> : null}
+          {occasionLabel ? ` for ${occasionLabel.toLowerCase()}` : ''}:
+        </>
+      )
+    }
+    if (occasionLabel) {
+      return <>Picks for <strong>{occasionLabel.toLowerCase()}</strong>:</>
+    }
+    return <>Your picks tonight:</>
+  }
 
   return (
     <motion.section
@@ -1952,7 +1994,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, se
       transition={{ duration: 0.3 }}
     >
       <p className="text-center mb-2 text-xs sm:text-sm text-neutral-500 dark:text-white/60">
-        For a <strong>{moods.join(' + ')}</strong> watch ({occasionLabel?.toLowerCase()}):
+        <ResultsHeader />
       </p>
       {/* Score-line area is ALWAYS reserved (~44px) so the buttons below
           don't jump up when picks empty and the bar disappears. In exhausted

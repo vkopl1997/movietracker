@@ -2239,64 +2239,93 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         )}
       </div>
 
-      {/* Fixed grid height on sm+ so the buttons below never drift when
-          content swaps between picks (~380px) and the exhausted card
-          (~340px). Both states get vertically centered inside the slot
-          via `items-center`, so the smaller exhausted card sits in the
-          middle instead of pinning to the top. Mobile keeps min-h-[280px]
-          only — stacked cards there are taller than any single state so a
-          fixed sm-height would just create dead space. */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 max-w-2xl mx-auto min-h-[280px] sm:min-h-[400px] sm:items-center">
-        {/* No skeleton intermediate state — we keep the prior picks (or
-            exhausted card) on screen during the fetch and let AnimatePresence
-            crossfade directly to whatever comes back. The "Pick again" button
-            spinner is the only loading indicator needed. */}
+      {/* Hero + sidebar results: the top pick (highest score) is the
+          FEATURED card on the left at ~3x size; the two alternatives
+          stack as smaller landscape cards on the right. Mirrors the
+          form's hero+sidebar pattern so the whole picker reads as one
+          visual system. Mobile collapses everything to a single column
+          where the featured card stays full-width and alternatives sit
+          beneath it. */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 mb-4 max-w-6xl mx-auto min-h-[280px] md:min-h-[420px]">
         <AnimatePresence mode="wait">
           {picks?.length === 0 ? (
-            <ExhaustedState key="exhausted" className="sm:col-span-3" />
+            <ExhaustedState key="exhausted" className="md:col-span-12" />
           ) : picks?.length > 0 ? (
-            picks.map((pick, idx) => (
+            <>
+              {/* FEATURED (top pick) — col-span-8 */}
               <motion.div
-                key={`pick-${round}-${pick.id}`}
-                initial={{ opacity: 0, scale: 0.94 }}
+                key={`featured-${round}-${picks[0].id}`}
+                initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: idx * 0.05 }}
-                className="text-center relative group will-change-transform"
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                className="md:col-span-8 relative group will-change-transform"
               >
-                {/* [#7] Dismiss button */}
+                <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-brand text-black text-[10px] font-bold tracking-wider uppercase shadow-lg">
+                  ★ Top pick
+                </div>
                 <button
-                  onClick={() => onDismiss(pick)}
+                  onClick={() => onDismiss(picks[0])}
                   title="Show me less like this"
-                  className="absolute -top-2 -right-2 z-10 w-7 h-7 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-sm border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
+                  className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-base border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
                 >
                   ×
                 </button>
-
-                <MediaCard {...pick} />
-
+                <MediaCard {...picks[0]} />
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.18 + idx * 0.05, duration: 0.22 }}
-                  className="mt-1.5 flex flex-wrap justify-center gap-1 px-0.5"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  transition={{ delay: 0.18, duration: 0.22 }}
+                  className="mt-2 flex flex-wrap justify-center gap-1 px-2"
                 >
-                  {tagsFor(pick, moods, occasion).map((tag) => (
-                    <span key={tag} className="text-[9px] sm:text-[10px] font-medium text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                  {tagsFor(picks[0], moods, occasion).map((tag) => (
+                    <span key={tag} className="text-[10px] sm:text-[11px] font-medium text-brand bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-full leading-none whitespace-nowrap">
                       #{tag}
                     </span>
                   ))}
                 </motion.div>
                 <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.26 + idx * 0.05, duration: 0.24 }}
-                  className="mt-1 text-[10px] sm:text-[11px] text-neutral-600 dark:text-white/70 leading-snug px-0.5 line-clamp-2"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  transition={{ delay: 0.26, duration: 0.24 }}
+                  className="mt-1.5 text-center text-[11px] sm:text-xs text-neutral-600 dark:text-white/70 leading-snug px-2 line-clamp-2"
                 >
-                  {reasonFor(pick, moods, occasionLabel)}
+                  {reasonFor(picks[0], moods, occasionLabel)}
                 </motion.p>
               </motion.div>
-            ))
+
+              {/* ALTERNATIVES — col-span-4 stacked */}
+              <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-3 lg:gap-4 self-start">
+                {picks.slice(1).map((pick, idx) => (
+                  <motion.div
+                    key={`alt-${round}-${pick.id}`}
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.08 + idx * 0.06 }}
+                    className="relative group will-change-transform"
+                  >
+                    <button
+                      onClick={() => onDismiss(pick)}
+                      title="Show me less like this"
+                      className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-xs border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
+                    >
+                      ×
+                    </button>
+                    <MediaCard {...pick} />
+                    <motion.div
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      transition={{ delay: 0.24 + idx * 0.06, duration: 0.22 }}
+                      className="mt-1.5 flex flex-wrap justify-center gap-1 px-1"
+                    >
+                      {tagsFor(pick, moods, occasion).slice(0, 3).map((tag) => (
+                        <span key={tag} className="text-[9px] font-medium text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                          #{tag}
+                        </span>
+                      ))}
+                    </motion.div>
+                  </motion.div>
+                ))}
+              </div>
+            </>
           ) : null}
         </AnimatePresence>
       </div>

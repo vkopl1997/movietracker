@@ -13,18 +13,36 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Cavea-inspired gold accent. Used for the brand, ratings, hearts.
+        // Linear's brand purple. Used wherever we previously used gold:
+        // primary buttons, ratings, accents, headers. Light/dark variants
+        // for hover/pressed states.
         brand: {
-          DEFAULT: '#d4af37', // warm gold
-          light:   '#f5d061',
-          dark:    '#a0801f',
+          DEFAULT: '#5e6ad2', // Linear primary purple
+          light:   '#8b91e6', // hover / highlight
+          dark:    '#4a52ba', // pressed / shadow tint
+        },
+        // Linear's surface ladder — very subtle steps for layered content.
+        // Use these directly when you want a Linear-true look:
+        //   bg-surface          = the page bg
+        //   bg-surface-1        = cards on the page
+        //   bg-surface-2        = elevated cards / hovered rows
+        //   bg-surface-3        = modal dialogs
+        surface: {
+          DEFAULT: '#08080A',
+          1:       '#0e0e10',
+          2:       '#16161B',
+          3:       '#1C1C21',
         },
       },
       fontFamily: {
-        // Inter — body / UI text.
+        // Inter — used everywhere. Linear uses their own Inter-derivative
+        // ("Inter Display" with display-optimized glyphs); plain Inter is
+        // the closest publicly available match.
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
-        // Bebas Neue — condensed display font for the brand wordmark (cinema poster vibe).
-        display: ['Bebas Neue', 'Anton', 'Impact', 'sans-serif'],
+        // Display font is now Inter too — but heavier weight + tighter
+        // tracking applied at usage. Drops the "cinema poster" Bebas Neue
+        // in favor of Linear's geometric-sans aesthetic.
+        display: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       keyframes: {
         // Shimmer for loading skeletons — slides the gradient from left to right.

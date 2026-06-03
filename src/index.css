@@ -1,5 +1,5 @@
 /* @import must come first. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bebas+Neue&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -12,6 +12,9 @@ html, body, #root {
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
+  /* Linear feel: slightly tighter tracking, small optical sizing tweak. */
+  font-feature-settings: 'ss01', 'ss02', 'cv01', 'cv11';
+  letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
@@ -20,10 +23,16 @@ body {
   color: #0f172a;            /* near-black */
 }
 
-/* Dark theme (Tailwind's `dark` class on <html>) */
+/* Dark theme (Tailwind's `dark` class on <html>) — Linear's near-black */
 html.dark body {
-  background-color: #0a0a0a;
-  color: white;
+  background-color: #08080A;
+  color: #f7f8f8;
+}
+
+/* Linear's display headings — tighter tracking, heavier weight */
+.font-display {
+  letter-spacing: -0.03em;
+  font-weight: 700;
 }
 
 /* Smooth color transitions when toggling themes */

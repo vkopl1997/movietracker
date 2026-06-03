@@ -10,7 +10,6 @@ import { usePageTitle } from '../lib/usePageTitle'
 import MediaCard from '../components/MediaCard'
 import { SkeletonGrid } from '../components/SkeletonCard'
 import LikeButton from '../components/LikeButton'
-import HorizontalRow from '../components/HorizontalRow'
 
 const STATUS_TABS = [
   { value: 'all',       label: 'All',       color: 'bg-brand' },
@@ -135,12 +134,13 @@ function UserProfilePage() {
       animate="show"
       className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12"
     >
-      {/* ── Profile header ───────────────────────────────────── */}
+      {/* ── Profile header — avatar + framed bio card ─────────── */}
       <section className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-10">
+        {/* Avatar — rectangular, smaller, flatter Linear-style ring */}
         <div className="
-          shrink-0 w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden
-          ring-1 ring-black/10 dark:ring-white/10
-          shadow-xl
+          shrink-0 w-28 h-28 sm:w-32 sm:h-32 rounded-md overflow-hidden
+          ring-1 ring-white/10
+          shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)]
         ">
           {profile.avatar_url ? (
             <img
@@ -151,150 +151,201 @@ function UserProfilePage() {
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-6xl font-display text-brand bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-800">
+            <div className="w-full h-full flex items-center justify-center text-5xl font-display text-brand bg-gradient-to-br from-neutral-700 to-neutral-900">
               {initial}
             </div>
           )}
         </div>
 
-        <div className="flex-1 min-w-0 text-center sm:text-left">
-          <h1 className="font-display text-4xl sm:text-5xl tracking-[0.02em] leading-tight mb-2">
-            {name}
-          </h1>
-          {profile.created_at && (
-            <p className="text-sm text-neutral-500 dark:text-white/50 mb-4">
-              Joined {joinedLabel(profile.created_at)}
-            </p>
-          )}
+        <div className="flex-1 min-w-0 w-full">
+          <div className="
+            w-full rounded-lg bg-surface-1 border border-white/[0.08]
+            shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+            overflow-hidden
+          ">
+            {/* ── Section: header (name + joined) ── */}
+            <div className="px-5 sm:px-6 pt-4 pb-4 border-b border-white/[0.06]">
+              <h1 className="font-display text-2xl sm:text-3xl tracking-[-0.02em] leading-[1.1] text-white">
+                {name}
+              </h1>
+              {profile.created_at && (
+                <p className="mt-1.5 text-[12px] text-white/45">
+                  Joined {joinedLabel(profile.created_at)}
+                </p>
+              )}
+            </div>
 
-          {/* Like button — big variant. Disabled on own profile. */}
-          <div className="mb-4 flex justify-center sm:justify-start">
-            <LikeButton
-              targetUserId={id}
-              likeCount={likeCount}
-              likedByMe={likedByMe}
-              size="lg"
-              onChange={({ liked, count }) => {
-                setLikedByMe(liked)
-                setLikeCount(count)
-              }}
-            />
-          </div>
+            {/* ── Section: like button ── */}
+            <div className="px-5 sm:px-6 py-3 border-b border-white/[0.06]">
+              <LikeButton
+                targetUserId={id}
+                likeCount={likeCount}
+                likedByMe={likedByMe}
+                size="lg"
+                onChange={({ liked, count }) => {
+                  setLikedByMe(liked)
+                  setLikeCount(count)
+                }}
+              />
+            </div>
 
-          {/* Stat pills */}
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <StatPill icon="♥" label="favorites" value={counts.favorites} color="text-brand" />
-            <StatPill icon="✓" label="watched"   value={counts.watched}   color="text-emerald-500" />
-            <StatPill icon="🔖" label="watchlist" value={counts.watchlist} color="text-sky-500" />
+            {/* ── Section: library stats (3 stat pills) ── */}
+            <div className="px-5 sm:px-6 py-3 flex flex-wrap items-center gap-2">
+              <StatPill icon="♥"  label="favorites" value={counts.favorites} color="text-pink-400"    />
+              <StatPill icon="✓"  label="watched"   value={counts.watched}   color="text-emerald-400" />
+              <StatPill icon="🔖" label="watchlist" value={counts.watchlist} color="text-sky-400"     />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── Shared with you (only when signed in + not own profile) ── */}
+      {/* ── Shared with you — framed card ─────────────────────── */}
       {sharedItems.length > 0 && (
-        <section className="mb-12">
-          <h2 className="text-xl font-bold mb-2">
-            You and {name} share {sharedItems.length} {sharedItems.length === 1 ? 'title' : 'titles'}
-          </h2>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {sharedStats.fav > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand/10 text-brand text-xs font-medium border border-brand/30">
-                ♥ Both favorited <strong>{sharedStats.fav}</strong>
+        <section className="mb-12 w-full">
+          <div className="
+            rounded-lg bg-surface-1 border border-white/[0.08]
+            shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+            overflow-hidden
+          ">
+            {/* Header */}
+            <div className="px-5 sm:px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap border-b border-white/[0.06]">
+              <h2 className="text-[15px] font-semibold tracking-tight text-white">
+                You and {name} share {sharedItems.length} {sharedItems.length === 1 ? 'title' : 'titles'}
+              </h2>
+              <span className="text-[12px] text-white/45">
+                {sharedItems.length} shared
               </span>
+            </div>
+
+            {/* Stats chips */}
+            {(sharedStats.fav > 0 || sharedStats.watched > 0 || sharedStats.watchlist > 0) && (
+              <div className="px-5 sm:px-6 py-3 flex flex-wrap gap-2 border-b border-white/[0.06]">
+                {sharedStats.fav > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-pink-400/10 text-pink-300 text-[11px] font-medium border border-pink-400/20">
+                    <span className="text-pink-400">♥</span> Both favorited
+                    <span className="text-white/55 ml-0.5">{sharedStats.fav}</span>
+                  </span>
+                )}
+                {sharedStats.watched > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-300 text-[11px] font-medium border border-emerald-500/20">
+                    <span className="text-emerald-400">✓</span> Both watched
+                    <span className="text-white/55 ml-0.5">{sharedStats.watched}</span>
+                  </span>
+                )}
+                {sharedStats.watchlist > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-sky-500/10 text-sky-300 text-[11px] font-medium border border-sky-500/20">
+                    <span className="text-sky-400">🔖</span> Both on watchlist
+                    <span className="text-white/55 ml-0.5">{sharedStats.watchlist}</span>
+                  </span>
+                )}
+              </div>
             )}
-            {sharedStats.watched > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-medium border border-emerald-500/30">
-                ✓ Both watched <strong>{sharedStats.watched}</strong>
-              </span>
-            )}
-            {sharedStats.watchlist > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 text-sky-500 text-xs font-medium border border-sky-500/30">
-                🔖 Both on watchlist <strong>{sharedStats.watchlist}</strong>
-              </span>
-            )}
+
+            {/* Embedded HorizontalRow without its own outer frame */}
+            <div className="p-4 sm:p-5">
+              <InlineSharedRow items={sharedItems} />
+            </div>
           </div>
-          <HorizontalRow title="" items={sharedItems} />
         </section>
       )}
 
-      {/* ── Status tabs ─────────────────────────────────────── */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-        {STATUS_TABS.map((t) => {
-          const active = tab === t.value
-          return (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition flex items-center gap-2 ${
-                active
-                  ? `${t.color} text-black`
-                  : 'bg-black/5 hover:bg-black/10 text-neutral-700 border border-black/10 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/70 dark:border-white/10'
-              }`}
-            >
-              {t.label}
-              <span className="opacity-60">({counts[t.value]})</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ── Type filter ─────────────────────────────────────── */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="flex rounded-full bg-black/5 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
-          {['all', 'movie', 'tv'].map((t) => (
-            <button
-              key={t}
-              onClick={() => setType(t)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition ${
-                type === t
-                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow'
-                  : 'text-neutral-500 dark:text-white/60'
-              }`}
-            >
-              {t === 'all' ? 'All' : t === 'movie' ? 'Movies' : 'TV'}
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto text-xs text-neutral-500 dark:text-white/40">
-          {visible.length} {visible.length === 1 ? 'item' : 'items'}
-        </div>
-      </div>
-
-      {/* ── Grid ─────────────────────────────────────────────── */}
-      {visible.length === 0 ? (
-        <div className="p-12 rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-white/5 text-center">
-          <div className="text-5xl mb-4">
-            {tab === 'favorites' ? '💔' : tab === 'watched' ? '👀' : tab === 'watchlist' ? '🗒️' : '🎬'}
+      {/* ── Library grid — framed card with all filters inside ── */}
+      <section className="w-full">
+        <div className="
+          rounded-lg bg-surface-1 border border-white/[0.08]
+          shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+          overflow-hidden
+        ">
+          {/* Header */}
+          <div className="px-5 sm:px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap border-b border-white/[0.06]">
+            <h2 className="text-[15px] font-semibold tracking-tight text-white">Library</h2>
+            <span className="text-[12px] text-white/45">
+              {visible.length} {visible.length === 1 ? 'item' : 'items'}
+            </span>
           </div>
-          <h2 className="text-lg font-semibold mb-2">
-            {tab === 'all'
-              ? "Nothing in their library yet"
-              : tab === 'favorites'
-              ? `No favorites yet`
-              : tab === 'watched'
-              ? `Nothing marked watched yet`
-              : `Nothing on the watchlist yet`}
-          </h2>
-        </div>
-      ) : (
-        <motion.div
-          key={`${tab}-${type}`}
-          variants={gridContainer}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
-        >
-          {visible.map((item) => (
-            <motion.div key={`${item.mediaType}-${item.id}`} variants={cardVariant}>
-              <MediaCard {...item} />
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
 
-      <div className="mt-10">
-        <Link to="/users" className="text-sm text-neutral-500 dark:text-white/60 hover:text-brand transition">
+          {/* Filters — Linear segmented controls */}
+          <div className="px-5 sm:px-6 py-3.5 flex flex-wrap items-center gap-3 border-b border-white/[0.06]">
+            {/* Status filter — All / Favorites / Watched / Watchlist */}
+            <div className="inline-flex items-center rounded-md bg-white/[0.04] border border-white/[0.06] p-0.5">
+              {STATUS_TABS.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setTab(t.value)}
+                  className={`px-2.5 py-1 rounded-[5px] text-[12px] font-medium transition-colors ${
+                    tab === t.value
+                      ? 'bg-white/[0.08] text-white'
+                      : 'text-white/55 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                  <span className={`ml-1.5 text-[11px] ${tab === t.value ? 'text-white/55' : 'text-white/35'}`}>
+                    {counts[t.value]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Type filter — All / Movies / TV */}
+            <div className="inline-flex items-center rounded-md bg-white/[0.04] border border-white/[0.06] p-0.5">
+              {[
+                { v: 'all',   label: 'All' },
+                { v: 'movie', label: 'Movies' },
+                { v: 'tv',    label: 'TV' },
+              ].map((t) => (
+                <button
+                  key={t.v}
+                  onClick={() => setType(t.v)}
+                  className={`px-2.5 py-1 rounded-[5px] text-[12px] font-medium transition-colors ${
+                    type === t.v
+                      ? 'bg-white/[0.08] text-white'
+                      : 'text-white/55 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="p-5 sm:p-6">
+            {visible.length === 0 ? (
+              <div className="py-10 text-center">
+                <div className="text-4xl mb-3 opacity-60">
+                  {tab === 'favorites' ? '💔' : tab === 'watched' ? '👀' : tab === 'watchlist' ? '🗒️' : '🎬'}
+                </div>
+                <h3 className="text-[14px] font-semibold text-white/80">
+                  {tab === 'all'
+                    ? "Nothing in their library yet"
+                    : tab === 'favorites'
+                    ? `No favorites yet`
+                    : tab === 'watched'
+                    ? `Nothing marked watched yet`
+                    : `Nothing on the watchlist yet`}
+                </h3>
+              </div>
+            ) : (
+              <motion.div
+                key={`${tab}-${type}`}
+                variants={gridContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
+              >
+                {visible.map((item) => (
+                  <motion.div key={`${item.mediaType}-${item.id}`} variants={cardVariant}>
+                    <MediaCard {...item} />
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <div className="mt-6">
+        <Link to="/users" className="text-[13px] text-white/55 hover:text-white transition">
           ← All users
         </Link>
       </div>
@@ -302,17 +353,37 @@ function UserProfilePage() {
   )
 }
 
+// Bare horizontal scroll row — used inside the shared-titles framed
+// section so we don't get a frame inside a frame.
+function InlineSharedRow({ items }) {
+  return (
+    <div className="overflow-x-auto scrollbar-hide">
+      <div className="flex gap-4 pb-1">
+        {items.map((item) => (
+          <div
+            key={`${item.mediaType}-${item.id}`}
+            className="w-36 sm:w-40 md:w-44 shrink-0"
+          >
+            <MediaCard {...item} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Stat pill — Linear-style flat chip with coloured icon + count + label.
 function StatPill({ icon, label, value, color }) {
   return (
     <span className="
-      inline-flex items-center gap-1.5 px-3 py-1 rounded-full
-      bg-black/5 dark:bg-white/5
-      border border-black/10 dark:border-white/10
-      text-sm
+      inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md
+      bg-white/[0.04]
+      border border-white/[0.06]
+      text-[12px]
     ">
       <span className={color}>{icon}</span>
-      <strong className="font-semibold">{value}</strong>
-      <span className="text-neutral-500 dark:text-white/50 text-xs">{label}</span>
+      <strong className="font-semibold text-white">{value}</strong>
+      <span className="text-white/45 text-[11px]">{label}</span>
     </span>
   )
 }

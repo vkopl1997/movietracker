@@ -2327,7 +2327,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         shadow-2xl shadow-black/30
         overflow-hidden
       ">
-        <div className="p-2 sm:p-3 grid grid-cols-1 md:grid-cols-10 gap-3 lg:gap-4 items-start">
+        <div className="p-1.5 sm:p-2 grid grid-cols-1 md:grid-cols-10 gap-2 lg:gap-3 items-start">
 
       {/* ─── LEFT SIDEBAR (col-span-3 of 10 = 30% width): INNER framed
           table. self-start so the panel hugs its own content height
@@ -2414,7 +2414,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       <div className="
         rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
         shadow-2xl shadow-black/30
-        overflow-hidden p-3 sm:p-4
+        overflow-hidden p-1.5 sm:p-2
       ">
 
       {/* Hero + sidebar results: the top pick (highest score) is the
@@ -2428,7 +2428,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           the outer 12-col. The narrower right column naturally shrinks
           each card so the trio fits in a typical laptop viewport
           without scrolling. */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 min-h-[280px] md:min-h-[420px]">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 lg:gap-3 min-h-[280px] md:min-h-[420px]">
         <AnimatePresence mode="wait">
           {picks?.length === 0 ? (
             <ExhaustedState key="exhausted" className="md:col-span-12" />

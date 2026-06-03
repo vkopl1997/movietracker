@@ -53,26 +53,43 @@ function NoteIcon({ className = '' }) {
 }
 
 // ── Compact mode (cards) — unchanged behaviour, icon-only floating cluster
+// `label` doubles as the styled tooltip that appears on hover. We use a
+// peer / peer-hover Tailwind trick: the button is `peer`, a sibling
+// `<span>` is the tooltip, and peer-hover:opacity-100 reveals it.
 function StatusButton({ active, onClick, color, icon, label }) {
   return (
-    <motion.button
-      type="button"
-      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick() }}
-      whileTap={{ scale: 0.85 }}
-      animate={{ scale: active ? [1, 1.25, 1] : 1 }}
-      transition={{ duration: 0.22 }}
-      title={label}
-      aria-label={label}
-      className={`
-        w-8 h-8 rounded-md flex items-center justify-center
-        transition-colors
-        ${active
-          ? `${color} text-black`
-          : 'bg-black/60 text-white/80 hover:bg-white/90 hover:text-black'}
-      `}
-    >
-      {icon}
-    </motion.button>
+    <div className="relative group/btn">
+      <motion.button
+        type="button"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick() }}
+        whileTap={{ scale: 0.85 }}
+        animate={{ scale: active ? [1, 1.25, 1] : 1 }}
+        transition={{ duration: 0.22 }}
+        aria-label={label}
+        className={`
+          peer w-8 h-8 rounded-md flex items-center justify-center
+          transition-colors
+          ${active
+            ? `${color} text-black`
+            : 'bg-black/60 text-white/80 hover:bg-white/90 hover:text-black'}
+        `}
+      >
+        {icon}
+      </motion.button>
+      {/* Tooltip — sits to the LEFT of the button cluster (the cluster
+          is on the right edge of the poster). Hidden by default,
+          revealed on per-button hover. */}
+      <span className="
+        pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-2
+        px-2 py-1 rounded-md
+        bg-black/90 text-white text-[11px] font-medium whitespace-nowrap
+        opacity-0 peer-hover:opacity-100
+        transition-opacity duration-150
+        z-20
+      ">
+        {label}
+      </span>
+    </div>
   )
 }
 

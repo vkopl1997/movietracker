@@ -59,6 +59,11 @@ function MediaCard({ id, title, year, mediaType, posterUrl, rating }) {
               </svg>
             </div>
           )}
+
+          {/* Action cluster lives INSIDE the poster so its absolute
+              positioning is relative to the poster, not the outer
+              card wrapper (which also includes the title row). */}
+          <MediaActionsCompact item={item} />
         </div>
 
         {/* Title + year — sit on the dark page surface, not on the
@@ -79,8 +84,6 @@ function MediaCard({ id, title, year, mediaType, posterUrl, rating }) {
         </div>
       </Link>
 
-      {/* Stacked action buttons (sibling of Link) — float over the poster */}
-      <MediaActionsCompact item={item} />
     </div>
   )
 }

@@ -13,13 +13,15 @@ function PersonCard({ id, name, photoUrl, knownForWorks }) {
 
   return (
     <Link to={`/person/${id}`} className="group block">
+      {/* Portrait — flatter rounded-md to match the Linear surface
+          ladder. No translate-y or coloured glow on hover; just a quiet
+          ring-brand swap and a subtle image scale. */}
       <div className="
-        relative aspect-[2/3] overflow-hidden rounded-xl
-        bg-neutral-200 dark:bg-neutral-900
-        ring-1 ring-black/5 dark:ring-white/5
-        transition duration-300
-        group-hover:ring-brand/60 group-hover:-translate-y-1
-        group-hover:shadow-[0_20px_40px_-15px_rgba(212,175,55,0.4)]
+        relative aspect-[2/3] overflow-hidden rounded-md
+        bg-white/[0.04]
+        ring-1 ring-white/10
+        transition
+        group-hover:ring-brand
       ">
         {showImage ? (
           <img
@@ -33,9 +35,9 @@ function PersonCard({ id, name, photoUrl, knownForWorks }) {
             "
           />
         ) : (
-          // Branded fallback: gradient + Bebas Neue initial in brand gold
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-900">
-            <span className="font-display text-8xl text-brand drop-shadow-lg leading-none">
+          // Branded fallback: gradient + Inter display initial
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-700 to-neutral-900">
+            <span className="font-display text-7xl text-brand drop-shadow leading-none">
               {initial}
             </span>
           </div>
@@ -43,12 +45,12 @@ function PersonCard({ id, name, photoUrl, knownForWorks }) {
       </div>
 
       {/* Name + known for. */}
-      <div className="mt-2 px-1">
-        <div className="text-sm font-semibold leading-tight line-clamp-1">
+      <div className="mt-2 px-0.5">
+        <div className="text-[13px] font-semibold leading-tight line-clamp-1 text-white/85 group-hover:text-white transition-colors">
           {name}
         </div>
         {knownForWorks?.length > 0 && (
-          <div className="text-xs text-neutral-500 dark:text-white/50 line-clamp-1 mt-0.5">
+          <div className="text-[11px] text-white/45 line-clamp-1 mt-0.5">
             {knownForWorks.join(' · ')}
           </div>
         )}

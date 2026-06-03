@@ -59,68 +59,90 @@ function BrowsePeoplePage() {
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-1">Actors</h1>
-        <p className="text-sm text-neutral-500 dark:text-white/50">
-          Trending this week — or search for anyone in TMDb's people catalog.
-        </p>
-      </header>
+      <section className="w-full">
+        <div className="
+          rounded-lg bg-surface-1 border border-white/[0.08]
+          shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+          overflow-hidden
+        ">
+          {/* ── Section: header (title + subtitle + count) ── */}
+          <div className="px-5 sm:px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap border-b border-white/[0.06]">
+            <div>
+              <h1 className="text-[15px] font-semibold tracking-tight text-white">Actors</h1>
+              <p className="mt-1.5 text-[12px] text-white/45">
+                Trending this week — or search for anyone in TMDb's people catalog.
+              </p>
+            </div>
+            {!loading && (
+              <span className="text-[12px] text-white/45">
+                {people.length} {people.length === 1 ? 'person' : 'people'}
+              </span>
+            )}
+          </div>
 
-      {/* Search bar — sits on the page, not in the navbar */}
-      <div className="mb-8 max-w-2xl">
-        <input
-          type="text"
-          value={localValue}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search actors, directors…"
-          className="
-            w-full px-4 py-3 rounded-full text-base
-            bg-black/5 dark:bg-white/5
-            border border-black/10 dark:border-white/10
-            text-neutral-900 dark:text-white
-            placeholder:text-neutral-400 dark:placeholder:text-white/40
-            focus:outline-none focus:border-brand focus:bg-black/10 dark:focus:bg-white/10
-            transition
-          "
-        />
-      </div>
+          {/* ── Section: search ── */}
+          <div className="px-5 sm:px-6 py-3.5 border-b border-white/[0.06]">
+            <div className="relative max-w-md">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                value={localValue}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search actors, directors…"
+                className="
+                  w-full pl-9 pr-3 py-1.5 rounded-md text-[13px]
+                  bg-white/[0.04] hover:bg-white/[0.06]
+                  border border-white/[0.06]
+                  text-white placeholder:text-white/35
+                  focus:outline-none focus:border-white/20 focus:bg-white/[0.06]
+                  transition
+                "
+              />
+            </div>
+          </div>
 
-      <div className="flex items-baseline justify-between mb-6">
-        <h2 className="text-lg font-bold">
-          {urlQuery ? `Results for "${urlQuery}"` : 'Trending this week'}
-        </h2>
-        {!loading && (
-          <span className="text-sm text-neutral-500 dark:text-white/50">
-            {people.length} {people.length === 1 ? 'person' : 'people'}
-          </span>
-        )}
-      </div>
+          {/* ── Section: results header (Trending / Results for) ── */}
+          <div className="px-5 sm:px-6 py-3 border-b border-white/[0.06]">
+            <h2 className="text-[13px] font-medium text-white/70">
+              {urlQuery ? `Results for "${urlQuery}"` : 'Trending this week'}
+            </h2>
+          </div>
 
-      {loading && <SkeletonGrid count={12} />}
+          {/* ── Section: body (skeleton / error / empty / grid) ── */}
+          <div className="p-5 sm:p-6">
+            {loading && <SkeletonGrid count={12} />}
 
-      {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm">
-          ⚠️ {error}
+            {error && (
+              <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 text-[13px]">
+                ⚠️ {error}
+              </div>
+            )}
+
+            {!loading && !error && people.length === 0 && (
+              <p className="text-[13px] text-white/50">No people found.</p>
+            )}
+
+            {!loading && !error && people.length > 0 && (
+              <motion.div
+                key={urlQuery}
+                variants={gridContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
+              >
+                {people.map((p) => (
+                  <motion.div key={p.id} variants={cardVariant}>
+                    <PersonCard {...p} />
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </div>
         </div>
-      )}
-
-      {!loading && !error && people.length === 0 && (
-        <p className="text-neutral-500 dark:text-white/50">No people found.</p>
-      )}
-
-      <motion.div
-        key={urlQuery}
-        variants={gridContainer}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
-      >
-        {people.map((p) => (
-          <motion.div key={p.id} variants={cardVariant}>
-            <PersonCard {...p} />
-          </motion.div>
-        ))}
-      </motion.div>
+      </section>
     </main>
   )
 }

@@ -114,23 +114,27 @@ function WhereToWatch({ mediaType, id, title }) {
   const rightHasAny = regionData && (regionData.rent?.length || regionData.buy?.length)
 
   return (
-    <section className="mb-12 w-full max-w-2xl">
+    <section className="mb-12 w-full">
       <div className="
         rounded-lg bg-surface-1 border border-white/[0.08]
         shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
         overflow-hidden
       ">
 
-        {/* ── Section: header (title + country picker) ── */}
-        <div className="px-5 sm:px-6 py-4 flex items-center justify-between gap-3 flex-wrap border-b border-white/[0.06]">
+        {/* ── Section: header (title + region context line) ── */}
+        <div className="px-5 sm:px-6 pt-4 pb-4 border-b border-white/[0.06]">
           <h2 className="text-[15px] font-semibold tracking-tight text-white">
             Where to watch
           </h2>
-          <CountryPicker
-            value={country}
-            onChange={setCountry}
-            withData={countriesWithData}
-          />
+          {/* Linear-style context line — small label + inline picker chip */}
+          <div className="mt-1.5 flex items-center gap-2 text-[12px] text-white/45">
+            <span>Showing providers for</span>
+            <CountryPicker
+              value={country}
+              onChange={setCountry}
+              withData={countriesWithData}
+            />
+          </div>
         </div>
 
         {/* ── Section: body — empty state OR 2-column provider grid ── */}

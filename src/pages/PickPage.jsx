@@ -1395,29 +1395,42 @@ function ReferenceSection({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="relative p-5 sm:p-6 rounded-lg bg-surface-1 border border-white/[0.08] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]"
+      className="relative p-4 sm:p-5 lg:p-6 rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30 shadow-2xl shadow-black/30"
     >
+      {/* Glow blobs live inside their own clipped container so the panel
+          itself can let the autocomplete dropdown spill below. Previous
+          version had `overflow-hidden` on the panel — that not only clipped
+          the dropdown visually but its invisible portion was still
+          intercepting clicks on the Themes hashtags below. */}
+      <div aria-hidden className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute -top-20 -right-20 w-72 h-72 bg-brand/[0.18] rounded-full blur-3xl"
+          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.75, 0.5] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
+
       {/* Eyebrow + live dot */}
       <div className="relative flex items-center gap-2.5 mb-2">
-        <span className="relative flex w-2 h-2">
+        <span className="relative flex w-2.5 h-2.5">
           <motion.span
             aria-hidden
             className="absolute inset-0 rounded-full bg-brand"
             animate={{ scale: [1, 2.4, 1], opacity: [0.65, 0, 0.65] }}
             transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
           />
-          <span className="relative w-2 h-2 rounded-full bg-brand" />
+          <span className="relative w-2.5 h-2.5 rounded-full bg-brand shadow-[0_0_10px_rgba(212,175,55,0.7)]" />
         </span>
-        <span className="text-[10px] font-medium tracking-[0.18em] uppercase text-brand">
+        <span className="text-[11px] font-bold tracking-[0.25em] uppercase text-brand">
           Most important
         </span>
       </div>
 
       <div className="relative">
-        <h2 className="font-display text-2xl sm:text-3xl tracking-[-0.03em] leading-[1.05] text-white mb-1">
+        <h2 className="font-display text-2xl sm:text-3xl tracking-[0.02em] mb-1">
           Pick a movie you love
         </h2>
-        <p className="text-[13px] text-white/55 mb-4">
+        <p className="text-sm text-neutral-500 dark:text-white/60 mb-4">
           We'll score thousands of films against this one and surface the closest matches.
         </p>
 
@@ -1425,18 +1438,18 @@ function ReferenceSection({
         <div className="relative">
           {similarTo ? (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-              className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-[13px] font-medium text-white"
+              className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-brand/20 border border-brand/50 text-sm font-semibold text-brand shadow-md shadow-brand/30"
             >
-              <svg className="w-3.5 h-3.5 text-brand" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                 <path d="M12 2l2.6 7.4H22l-6.2 4.5 2.4 7.4-6.2-4.5-6.2 4.5 2.4-7.4L2 9.4h7.4z" />
               </svg>
               <span>{similarTo.title}</span>
               <button
                 onClick={() => { setSimilarTo(null); setSimilarQuery('') }}
-                className="text-white/55 hover:text-white ml-1 text-base leading-none"
+                className="text-brand/70 hover:text-brand ml-1 text-lg leading-none"
                 aria-label="Clear reference movie"
               >
                 ×
@@ -1450,13 +1463,15 @@ function ReferenceSection({
               onFocus={() => setSimilarOpen(true)}
               onBlur={() => setTimeout(() => setSimilarOpen(false), 150)}
               placeholder="e.g. Inception, Heat, Scavengers Reign, Parasite…"
-              className="w-full px-3 py-2 rounded-md text-[13px] bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.08] text-white placeholder:text-white/35 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition"
+              className="w-full px-5 py-3 rounded-full text-base bg-white/[0.06] border border-white/15 placeholder:text-white/30 focus:outline-none focus:border-brand focus:bg-white/[0.1] transition"
             />
           )}
 
-          {/* Autocomplete dropdown — Linear popover style */}
+          {/* Autocomplete dropdown — z-40 + a max-height so it never
+              extends past its visible portion into the Themes panel below
+              and steals their clicks. */}
           {similarOpen && similarResults.length > 0 && !similarTo && (
-            <div className="absolute z-40 mt-1 w-full rounded-md bg-surface-2 border border-white/[0.08] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] overflow-hidden max-h-72 overflow-y-auto">
+            <div className="absolute z-40 mt-1 w-full rounded-xl bg-neutral-900 border border-white/10 shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
               {similarResults.map((m) => (
                 <button
                   key={`${m.mediaType}-${m.id}`}
@@ -1481,7 +1496,7 @@ function ReferenceSection({
             Shown ABOVE favorites so theme-driven discovery takes precedence. */}
         {!similarTo && themeMovies.length > 0 && (
           <div className="mt-4">
-            <div className="text-[10px] font-medium tracking-[0.18em] uppercase text-white/40 mb-1.5 flex items-center gap-1.5">
+            <div className="text-[10px] tracking-[0.2em] uppercase text-neutral-500 dark:text-white/40 mb-1.5 flex items-center gap-1.5">
               <motion.span
                 aria-hidden
                 className="w-1 h-1 rounded-full bg-brand"
@@ -1495,8 +1510,9 @@ function ReferenceSection({
                 <motion.button
                   key={m.id}
                   onClick={() => setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType || 'movie', genreIds: m.genreIds || [] })}
-                  whileTap={{ scale: 0.97 }}
-                  className="px-2.5 py-1 rounded-md text-[12px] bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.08] text-white/80 hover:text-white transition"
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.94 }}
+                  className="px-3 py-1.5 rounded-full text-xs bg-brand/10 hover:bg-brand/20 border border-brand/30 hover:border-brand/50 text-brand transition"
                 >
                   {m.title}{m.year ? ` · ${m.year}` : ''}
                 </motion.button>
@@ -1509,7 +1525,7 @@ function ReferenceSection({
             Hidden when theme-driven matches are showing — those win. */}
         {!similarTo && hasFavs && themeMovies.length === 0 && (
           <div className="mt-4">
-            <div className="text-[10px] font-medium tracking-[0.18em] uppercase text-white/40 mb-1.5">
+            <div className="text-[10px] tracking-[0.2em] uppercase text-neutral-500 dark:text-white/40 mb-1.5">
               From your favorites
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -1517,8 +1533,9 @@ function ReferenceSection({
                 <motion.button
                   key={f.id}
                   onClick={() => setSimilarTo({ id: f.id, title: f.title, mediaType: f.mediaType, genreIds: f.genreIds || [] })}
-                  whileTap={{ scale: 0.97 }}
-                  className="px-2.5 py-1 rounded-md text-[12px] bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.08] text-white/70 hover:text-white transition"
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.94 }}
+                  className="px-3 py-1.5 rounded-full text-xs bg-white/[0.06] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70 transition"
                 >
                   {f.title}
                 </motion.button>
@@ -1528,7 +1545,7 @@ function ReferenceSection({
         )}
 
         {!similarTo && !hasFavs && themeMovies.length === 0 && (
-          <p className="text-[11px] text-white/40 mt-3">
+          <p className="text-[11px] text-neutral-500 dark:text-white/40 mt-3">
             Not sure? You can also skip — pick themes below, or set a vibe in fine-tune.
           </p>
         )}
@@ -1707,10 +1724,10 @@ function FineTuneToggle({ open, summary, onToggle, children }) {
           since clicking now opens a modal instead of expanding inline. */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-surface-1 border border-white/[0.08] hover:border-white/20 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)] transition text-left"
+        className="w-full flex items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-white/[0.03] to-white/[0.01] dark:from-white/[0.04] dark:to-white/[0.02] border border-white/10 hover:border-brand/40 transition text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="w-8 h-8 rounded-md bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+          <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand">
               <line x1="3" y1="6" x2="14" y2="6"/><circle cx="18" cy="6" r="2"/>
               <line x1="3" y1="12" x2="8" y2="12"/><circle cx="12" cy="12" r="2"/><line x1="16" y1="12" x2="21" y2="12"/>
@@ -1718,13 +1735,13 @@ function FineTuneToggle({ open, summary, onToggle, children }) {
             </svg>
           </span>
           <div className="min-w-0">
-            <div className="text-[13px] font-semibold text-white">Filters (optional)</div>
-            <div className="text-[11px] text-white/45 truncate">
+            <div className="text-sm font-semibold">Filters (optional)</div>
+            <div className="text-[11px] text-neutral-500 dark:text-white/50 truncate">
               {summary || 'Vibe, languages, era, length, avoid, pace, prompt'}
             </div>
           </div>
         </div>
-        <span className="text-xs text-white/45">↗</span>
+        <span className="text-xs text-neutral-500 dark:text-white/50">↗</span>
       </button>
 
       {/* MODAL — centered overlay, escapes the narrow sidebar so the form

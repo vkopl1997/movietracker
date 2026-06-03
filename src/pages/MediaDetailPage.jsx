@@ -224,37 +224,54 @@ function MediaDetailPage({ mediaType }) {
 
         {/* ─── Cast ─── */}
         {data.cast.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-xl font-bold mb-5">Cast</h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-4">
-              {data.cast.map((person) => (
-                <Link
-                  key={person.id}
-                  to={`/person/${person.id}`}
-                  className="group text-center"
-                >
-                  <div className="
-                    aspect-square overflow-hidden rounded-full
-                    bg-neutral-200 dark:bg-neutral-800
-                    ring-1 ring-black/5 dark:ring-white/5
-                    mb-2 transition
-                    group-hover:ring-2 group-hover:ring-brand
-                    group-hover:shadow-lg group-hover:shadow-brand/20
-                  ">
-                    <CastImage person={person} />
-                    {/* Branded fallback rendered inside CastImage when no photo
-                        or image fails to load — see component below. */}
-                  </div>
-                  <div className="text-xs font-semibold leading-tight group-hover:text-brand transition-colors">
-                    {person.name}
-                  </div>
-                  {person.character && (
-                    <div className="text-[10px] text-neutral-500 dark:text-white/50 mt-0.5 leading-tight">
-                      {person.character}
-                    </div>
-                  )}
-                </Link>
-              ))}
+          <section className="mb-12 w-full">
+            <div className="
+              rounded-lg bg-surface-1 border border-white/[0.08]
+              shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+              overflow-hidden
+            ">
+              {/* ── Section: header ── */}
+              <div className="px-5 sm:px-6 py-4 border-b border-white/[0.06]">
+                <h2 className="text-[15px] font-semibold tracking-tight text-white">
+                  Cast
+                </h2>
+                <div className="mt-1.5 text-[12px] text-white/45">
+                  {data.cast.length} {data.cast.length === 1 ? 'credit' : 'credits'}
+                </div>
+              </div>
+
+              {/* ── Section: body — grid of cast cards ── */}
+              <div className="p-5 sm:p-6">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-4">
+                  {data.cast.map((person) => (
+                    <Link
+                      key={person.id}
+                      to={`/person/${person.id}`}
+                      className="group text-center"
+                    >
+                      <div className="
+                        aspect-square overflow-hidden rounded-md
+                        bg-white/[0.04]
+                        ring-1 ring-white/10
+                        mb-2 transition
+                        group-hover:ring-brand
+                      ">
+                        <CastImage person={person} />
+                        {/* Branded fallback rendered inside CastImage when no photo
+                            or image fails to load — see component below. */}
+                      </div>
+                      <div className="text-xs font-semibold leading-tight text-white/85 group-hover:text-white transition-colors">
+                        {person.name}
+                      </div>
+                      {person.character && (
+                        <div className="text-[10px] text-white/45 mt-0.5 leading-tight">
+                          {person.character}
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
         )}

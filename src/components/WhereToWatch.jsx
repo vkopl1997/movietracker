@@ -116,8 +116,8 @@ function WhereToWatch({ mediaType, id, title }) {
   return (
     <section className="mb-12 w-full">
       <div className="
-        rounded-lg bg-surface-1 border border-white/[0.08]
-        shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+        rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
+        shadow-2xl shadow-black/30
         overflow-hidden
       ">
 

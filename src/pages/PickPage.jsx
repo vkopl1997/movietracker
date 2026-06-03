@@ -2477,7 +2477,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
               </motion.div>
 
               {/* ALTERNATIVES — col-span-4 stacked */}
-              <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-3 lg:gap-4 self-start">
+              <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-2 lg:gap-3 self-start">
                 {picks.slice(1).map((pick, idx) => (
                   <motion.div
                     key={`alt-${round}-${pick.id}`}

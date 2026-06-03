@@ -115,86 +115,105 @@ function MediaDetailPage({ mediaType }) {
             />
           )}
 
-          {/* Title + meta + overview */}
+          {/* Title + meta + overview — wrapped in ONE Linear-style framed
+              card. Each major content block is its own section, separated
+              by hairline borders, matching Linear's issue/properties panel. */}
           <div className="flex-1 pt-4 md:pt-32">
-            <div className="text-brand text-xs font-bold tracking-[0.2em] uppercase mb-2">
-              {mediaType === 'tv' ? 'TV Series' : 'Movie'}
-            </div>
-            <h1 className="text-4xl md:text-5xl font-extrabold leading-tight drop-shadow-lg mb-3">
-              {data.title}
-            </h1>
-            {data.tagline && (
-              <p className="text-neutral-500 dark:text-white/60 italic mb-4">{data.tagline}</p>
-            )}
+            <div className="
+              w-full max-w-2xl mb-12
+              rounded-lg bg-surface-1 border border-white/[0.08]
+              shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+              overflow-hidden
+            ">
+              {/* ── Section: header (type label + title + tagline + meta) ── */}
+              <div className="px-5 sm:px-6 pt-5 pb-5 border-b border-white/[0.06]">
+                <div className="text-[10px] tracking-[0.18em] uppercase text-brand font-medium mb-2">
+                  {mediaType === 'tv' ? 'TV Series' : 'Movie'}
+                </div>
+                <h1 className="font-display text-3xl md:text-4xl tracking-[-0.03em] leading-[1.05] mb-2 text-white">
+                  {data.title}
+                </h1>
+                {data.tagline && (
+                  <p className="text-white/55 italic text-[14px] mb-3">{data.tagline}</p>
+                )}
 
-            {/* Meta row */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-neutral-600 dark:text-white/70 mb-6">
-              {data.year && <span>{data.year}</span>}
-              {data.rating > 0 && (
-                <>
-                  <span>·</span>
-                  <span className="text-brand font-semibold">★ {data.rating.toFixed(1)}</span>
-                </>
-              )}
-              {data.runtime && (
-                <>
-                  <span>·</span>
-                  <span>{Math.floor(data.runtime / 60)}h {data.runtime % 60}m</span>
-                </>
-              )}
-              {data.seasons && (
-                <>
-                  <span>·</span>
-                  <span>{data.seasons} {data.seasons === 1 ? 'season' : 'seasons'}</span>
-                </>
-              )}
-              {data.genres.length > 0 && (
-                <>
-                  <span>·</span>
-                  <span>{data.genres.map((g) => g.name).join(', ')}</span>
-                </>
-              )}
-            </div>
+                {/* Meta row */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-white/60">
+                  {data.year && <span>{data.year}</span>}
+                  {data.rating > 0 && (
+                    <>
+                      <span className="text-white/25">·</span>
+                      <span className="text-brand font-medium">★ {data.rating.toFixed(1)}</span>
+                    </>
+                  )}
+                  {data.runtime && (
+                    <>
+                      <span className="text-white/25">·</span>
+                      <span>{Math.floor(data.runtime / 60)}h {data.runtime % 60}m</span>
+                    </>
+                  )}
+                  {data.seasons && (
+                    <>
+                      <span className="text-white/25">·</span>
+                      <span>{data.seasons} {data.seasons === 1 ? 'season' : 'seasons'}</span>
+                    </>
+                  )}
+                  {data.genres.length > 0 && (
+                    <>
+                      <span className="text-white/25">·</span>
+                      <span>{data.genres.map((g) => g.name).join(', ')}</span>
+                    </>
+                  )}
+                </div>
+              </div>
 
-            <p className="text-neutral-700 dark:text-white/85 leading-relaxed max-w-2xl mb-8">
-              {data.overview || 'No overview available.'}
-            </p>
+              {/* ── Section: overview ── */}
+              <div className="px-5 sm:px-6 py-4 border-b border-white/[0.06]">
+                <p className="text-[14px] text-white/75 leading-relaxed">
+                  {data.overview || 'No overview available.'}
+                </p>
+              </div>
 
-            {/* Full action panel: favorite/watched/watchlist + rating + note */}
-            <div className="mb-12">
-              <MediaActionsFull item={{
-                id: Number(id),
-                title: data.title,
-                year: data.year,
-                rating: data.rating,
-                mediaType,
-                posterUrl: data.posterUrl,
-              }} />
+              {/* ── Section: status + personal (embedded, no nested frame) ── */}
+              <div className="border-b border-white/[0.06]">
+                <MediaActionsFull
+                  framed={false}
+                  item={{
+                    id: Number(id),
+                    title: data.title,
+                    year: data.year,
+                    rating: data.rating,
+                    mediaType,
+                    posterUrl: data.posterUrl,
+                  }}
+                />
+              </div>
 
-              {/* Watch Trailer button — only shown when we have a video */}
-              {data.trailerKey && (
-                <button
-                  onClick={() => setShowTrailer(true)}
-                  className="
-                    mt-5 inline-flex items-center gap-2
-                    px-5 py-2.5 rounded-full
-                    bg-red-600 hover:bg-red-500 text-white font-semibold text-sm
-                    shadow-lg shadow-red-600/30
-                    transition
-                  "
-                >
-                  <span className="text-base">▶</span>
-                  Watch Trailer
-                </button>
-              )}
-
-              <div className="mt-4">
+              {/* ── Section: footer (back link + Watch Trailer CTA) ── */}
+              <div className="px-5 sm:px-6 py-4 flex items-center justify-between gap-3">
                 <Link
                   to={from}
-                  className="text-sm text-neutral-500 dark:text-white/60 hover:text-brand transition"
+                  className="text-[13px] text-white/55 hover:text-white transition"
                 >
                   ← Back to {backLabel}
                 </Link>
+
+                {data.trailerKey && (
+                  <button
+                    onClick={() => setShowTrailer(true)}
+                    className="
+                      inline-flex items-center gap-2
+                      px-3.5 py-2 rounded-md
+                      bg-brand hover:bg-brand-light text-white
+                      text-[13px] font-medium transition
+                    "
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <polygon points="6 4 20 12 6 20 6 4" />
+                    </svg>
+                    Watch Trailer
+                  </button>
+                )}
               </div>
             </div>
           </div>

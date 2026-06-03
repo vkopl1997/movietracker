@@ -119,7 +119,10 @@ export function MediaActionsCompact({ item }) {
 // Hover: bg-white/[0.04]. Active state colors the icon and label.
 // No pill buttons, no shadows, no gradients — Linear's reading rhythm.
 // ─────────────────────────────────────────────────────────────────────
-export function MediaActionsFull({ item }) {
+// `framed` (default true) wraps the panel in its own rounded surface card.
+// Set to false when embedding inside a larger framed container (e.g. the
+// detail page's main content card) so we don't end up with nested borders.
+export function MediaActionsFull({ item, framed = true }) {
   const { user, signInWithGoogle } = useAuth()
   const {
     isFavorite, isWatched, isWatchlist, getUserRating, getNote,
@@ -170,8 +173,12 @@ export function MediaActionsFull({ item }) {
     )
   }
 
+  const frameClass = framed
+    ? 'w-full max-w-2xl rounded-lg bg-surface-1 border border-white/[0.08] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)] overflow-hidden'
+    : 'w-full'
+
   return (
-    <div className="w-full max-w-2xl rounded-lg bg-surface-1 border border-white/[0.08] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)] overflow-hidden">
+    <div className={frameClass}>
       <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-white/[0.06]">
 
         {/* ── Left column: STATUS ───────────────────────────────────── */}

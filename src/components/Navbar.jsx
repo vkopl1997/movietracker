@@ -1,3 +1,10 @@
+// Navbar — Linear.app pattern.
+//
+// Solid near-black bg, no blur, no glass. Logo + wordmark on the left, nav
+// links in plain text with white/60 -> white hover (no pill backgrounds).
+// Search lives inline at small size. Right rail: divider + Log in + a white
+// Sign-up pill (Linear's primary CTA pattern), or user menu when signed in.
+
 import { startTransition, useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
@@ -6,6 +13,15 @@ import UserMenu from './UserMenu'
 import Logo from './Logo'
 import NotificationBell from './NotificationBell'
 import MobileMenu from './MobileMenu'
+
+// Linear's nav link looks: 14px, white/60 default, white on hover/active,
+// NO background pill, NO border. The active state is just colour, not chrome.
+const navLinkClass = ({ isActive }) =>
+  `text-[14px] leading-none transition-colors ${
+    isActive
+      ? 'text-white'
+      : 'text-white/60 hover:text-white'
+  }`
 
 function Navbar() {
   const { user, signInWithGoogle } = useAuth()
@@ -16,11 +32,9 @@ function Navbar() {
   const location = useLocation()
   const urlQuery = searchParams.get('q') || ''
 
-  // Local state for instant typing feedback; URL update in startTransition.
   const [localValue, setLocalValue] = useState(urlQuery)
   useEffect(() => { setLocalValue(urlQuery) }, [urlQuery])
 
-  // Mobile menu open state
   const [menuOpen, setMenuOpen] = useState(false)
 
   function onChange(value) {
@@ -37,26 +51,15 @@ function Navbar() {
 
   return (
     <>
-      <nav className="
-        sticky top-0 z-50 backdrop-blur
-        bg-white/80 dark:bg-black/70
-        border-b border-black/5 dark:border-white/5
-        transition-colors
-      ">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 sm:gap-6">
+      <nav className="sticky top-0 z-50 bg-surface border-b border-white/[0.06]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-6">
 
-          {/* ── Mobile-only burger button (left side) ───────────── */}
+          {/* Mobile burger */}
           <button
             onClick={() => setMenuOpen(true)}
             aria-label="Open menu"
-            className="
-              md:hidden shrink-0 w-9 h-9 rounded-full flex items-center justify-center
-              bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-              border border-black/10 dark:border-white/10
-              transition
-            "
+            className="md:hidden shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-white/70 hover:text-white hover:bg-white/5 transition"
           >
-            {/* Burger icon — three lines */}
             <svg viewBox="0 0 18 18" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="2" y1="5"  x2="16" y2="5"  />
               <line x1="2" y1="9"  x2="16" y2="9"  />
@@ -64,166 +67,85 @@ function Navbar() {
             </svg>
           </button>
 
-          {/* ── Brand ───────────────────────────────────────────── */}
-          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-            <Logo size={32} className="transition-transform group-hover:scale-110" />
-            <span className="
-              font-display text-2xl sm:text-3xl tracking-[0.08em] leading-none
-              text-brand
-            ">
-              MOVIETRACKER
+          {/* Brand: small logo + wordmark, white */}
+          <Link to="/" className="flex items-center gap-2 shrink-0 text-white">
+            <Logo size={22} className="shrink-0" />
+            <span className="font-semibold text-[15px] tracking-tight leading-none">
+              MovieTracker
             </span>
           </Link>
 
-          {/* ── Desktop-only nav links + search ─────────────────── */}
-          <div className="hidden md:flex items-center gap-1 shrink-0">
-            <NavLink
-              to="/"
-              end
-              className={({ isActive }) =>
-                `px-3 py-1.5 rounded-full text-sm transition ${
-                  isActive
-                    ? 'bg-black/10 text-neutral-900 dark:bg-white/10 dark:text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 dark:text-white/60 dark:hover:text-white'
-                }`
-              }
-            >
-              Browse
-            </NavLink>
-            <NavLink
-              to="/actors"
-              className={({ isActive }) =>
-                `px-3 py-1.5 rounded-full text-sm transition ${
-                  isActive
-                    ? 'bg-black/10 text-neutral-900 dark:bg-white/10 dark:text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 dark:text-white/60 dark:hover:text-white'
-                }`
-              }
-            >
-              Actors
-            </NavLink>
-            <NavLink
-              to="/users"
-              className={({ isActive }) =>
-                `px-3 py-1.5 rounded-full text-sm transition ${
-                  isActive
-                    ? 'bg-black/10 text-neutral-900 dark:bg-white/10 dark:text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 dark:text-white/60 dark:hover:text-white'
-                }`
-              }
-            >
-              Users
-            </NavLink>
-
-            {/* "Pick" tab — small AI sparkle above the word. */}
-            <NavLink
-              to="/pick"
-              className={({ isActive }) =>
-                `relative px-3 py-1.5 rounded-full text-sm font-semibold transition ${
-                  isActive
-                    ? 'bg-brand text-black'
-                    : 'text-brand hover:bg-brand/10'
-                }`
-              }
-            >
-              {/* Floating sparkle indicator — sits just above the label */}
-              <span
-                aria-hidden="true"
-                className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[12px] leading-none animate-pulse"
-                style={{ filter: 'drop-shadow(0 0 6px rgba(212,175,55,0.6))' }}
-              >
-                ✨
-              </span>
-              Pick
-            </NavLink>
+          {/* Desktop nav links — plain text */}
+          <div className="hidden md:flex items-center gap-5 shrink-0">
+            <NavLink to="/" end className={navLinkClass}>Browse</NavLink>
+            <NavLink to="/actors" className={navLinkClass}>Actors</NavLink>
+            <NavLink to="/users" className={navLinkClass}>Users</NavLink>
+            <NavLink to="/pick" className={navLinkClass}>Pick</NavLink>
           </div>
 
-          {/* Desktop search — hidden on mobile (search lives in drawer) */}
-          <div className="hidden md:block flex-1 max-w-xl">
-            <input
-              type="text"
-              value={localValue}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder="Search movies & TV shows…"
-              className="
-                w-full px-4 py-2 rounded-full
-                bg-black/5 dark:bg-white/5
-                border border-black/10 dark:border-white/10
-                text-sm text-neutral-900 dark:text-white
-                placeholder:text-neutral-400 dark:placeholder:text-white/40
-                focus:outline-none focus:border-brand focus:bg-black/10 dark:focus:bg-white/10
-                transition
-              "
-            />
+          {/* Search — small / subtle, only on desktop */}
+          <div className="hidden md:block flex-1 max-w-sm ml-auto">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                value={localValue}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="Search"
+                className="w-full pl-9 pr-3 py-1.5 rounded-md text-[13px] bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-white/35 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition"
+              />
+            </div>
           </div>
 
-          {/* ── Right-side actions group ───────────────────────── */}
-          <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
-
-            {/* Library shortcut — same styling as Browse / Actors / Users links. */}
+          {/* Right rail */}
+          <div className="ml-auto md:ml-3 flex items-center gap-3 shrink-0">
             {user && (
-              <NavLink
-                to="/favorites"
-                className={({ isActive }) =>
-                  `hidden sm:inline-block px-3 py-1.5 rounded-full text-sm transition whitespace-nowrap ${
-                    isActive
-                      ? 'bg-black/10 text-neutral-900 dark:bg-white/10 dark:text-white'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:text-white/60 dark:hover:text-white'
-                  }`
-                }
-              >
+              <NavLink to="/favorites" className={`hidden sm:block ${navLinkClass({ isActive: location.pathname === '/favorites' })}`}>
                 My List
               </NavLink>
             )}
 
-            {/* Theme toggle — only visible to signed-out users.
-                Signed-in users find it inside the avatar dropdown menu. */}
+            {user && <NotificationBell />}
+
+            {/* Vertical divider — Linear's signature touch */}
+            {!user && <span className="hidden sm:block h-5 w-px bg-white/10" aria-hidden />}
+
             {!user && (
               <button
                 onClick={toggleTheme}
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-                className="
-                  hidden sm:flex w-9 h-9 rounded-full items-center justify-center
-                  bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-                  border border-black/10 dark:border-white/10
-                  transition text-lg
-                "
+                className="hidden sm:flex w-8 h-8 rounded-md items-center justify-center text-white/60 hover:text-white hover:bg-white/5 transition text-sm"
               >
-                {theme === 'dark' ? '☀️' : '🌙'}
+                {theme === 'dark' ? '☀' : '☾'}
               </button>
             )}
 
-            {/* Notification bell — only when signed in */}
-            {user && <NotificationBell />}
-
-            {/* Auth area */}
             {user ? (
               <UserMenu />
             ) : (
-              /* Compact sign-in for mobile: icon only. Full pill for sm+. */
-              <button
-                onClick={signInWithGoogle}
-                className="
-                  flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full
-                  bg-brand hover:bg-brand-light text-black font-medium text-sm
-                  transition
-                "
-              >
-                <svg className="w-4 h-4" viewBox="0 0 48 48">
-                  <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/>
-                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
-                  <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.4-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
-                  <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
-                </svg>
-                <span className="hidden sm:inline">Sign in</span>
-              </button>
+              <>
+                <button
+                  onClick={signInWithGoogle}
+                  className="hidden sm:block text-[14px] text-white/60 hover:text-white transition"
+                >
+                  Log in
+                </button>
+                {/* Sign-up = the white pill primary, Linear's signature CTA */}
+                <button
+                  onClick={signInWithGoogle}
+                  className="px-3 py-1.5 rounded-md bg-white hover:bg-white/90 text-black text-[13px] font-medium transition"
+                >
+                  Sign up
+                </button>
+              </>
             )}
           </div>
         </div>
       </nav>
 
-      {/* Mobile drawer — only rendered on small screens */}
       <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
   )

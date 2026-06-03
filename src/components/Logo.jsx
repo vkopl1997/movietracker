@@ -1,25 +1,20 @@
-// MovieTracker logo — bold geometric "M" monogram.
-// Cleaner, more iconic than the previous film-strip design.
-// Same artwork lives in /public/favicon.svg.
+// MovieTracker logo — Linear-style: a clean geometric "M" in currentColor
+// (so the parent's text color controls fill), no background, no gold.
+// Pairs with the "MovieTracker" wordmark in the navbar at semibold Inter.
 
-function Logo({ size = 32, className = '' }) {
+function Logo({ size = 22, className = '' }) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 64 64"
+      viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-hidden="true"
     >
-      {/* Rounded square in matte black */}
-      <rect width="64" height="64" rx="14" fill="#0a0a0a" />
-
-      {/* Gold "M" monogram — bold, geometric, slight stencil feel.
-          Designed so the negative space at the bottom hints at a clapperboard slot. */}
       <path
-        d="M 12 50 L 12 14 L 22 14 L 32 30 L 42 14 L 52 14 L 52 50 L 44 50 L 44 28 L 36 42 L 28 42 L 20 28 L 20 50 Z"
-        fill="#d4af37"
+        d="M 4 20 L 4 4 L 7 4 L 12 12.5 L 17 4 L 20 4 L 20 20 L 17.4 20 L 17.4 8.8 L 12 17 L 6.6 8.8 L 6.6 20 Z"
+        fill="currentColor"
       />
     </svg>
   )

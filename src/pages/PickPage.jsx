@@ -1081,18 +1081,18 @@ function PickPage() {
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 lg:py-5">
       {/* Page header hides when results are showing — ResultsView moves
-          the heading into its own left sidebar so we don't show it twice. */}
+          the heading into its own left sidebar so we don't show it twice.
+          Linear-style hero: small uppercase eyebrow, big tight display
+          heading, calm subtitle. Lots of breathing room. */}
       {!hasPicked && (
-        <header className="text-center mb-3 lg:mb-4">
-          <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase mb-1 flex items-center justify-center gap-3">
-            <span className="h-px w-6 sm:w-8 bg-brand/40" />
-            AI PICK
-            <span className="h-px w-6 sm:w-8 bg-brand/40" />
+        <header className="text-center mb-8 lg:mb-12 pt-6 lg:pt-10">
+          <div className="text-[11px] font-medium tracking-[0.18em] uppercase text-brand mb-4">
+            AI Pick
           </div>
-          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] mb-0.5">
+          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-[-0.03em] leading-[1.05] mb-4">
             What should I watch?
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
+          <p className="text-sm sm:text-base text-white/55 max-w-md mx-auto">
             Start with a movie you love — or skip and pick by theme.
           </p>
         </header>

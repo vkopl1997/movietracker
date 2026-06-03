@@ -2329,8 +2329,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       ">
         <div className="p-2 sm:p-3 grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 items-start">
 
-      {/* ─── LEFT SIDEBAR (col-span-4): INNER framed table ──────────── */}
-      <aside className="md:col-span-4 md:self-stretch flex">
+      {/* ─── LEFT SIDEBAR (col-span-6 = 50%): INNER framed table ──── */}
+      <aside className="md:col-span-6 md:self-stretch flex">
         <div className="
           w-full flex flex-col
           rounded-lg bg-surface-2 border border-white/[0.06]
@@ -2409,8 +2409,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         </div>
       </aside>
 
-      {/* ─── RIGHT (col-span-8): INNER framed table holding the cards ── */}
-      <div className="md:col-span-8">
+      {/* ─── RIGHT (col-span-6 = 50%): INNER framed table holding cards ── */}
+      <div className="md:col-span-6">
       <div className="
         rounded-lg bg-surface-2 border border-white/[0.06]
         shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]
@@ -2424,8 +2424,10 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           visual system. Mobile collapses everything to a single column
           where the featured card stays full-width and alternatives sit
           beneath it. */}
-      {/* Inner cards grid — now lives inside the right-hand col-span-8 of the
-          outer 12-col, so we redeclare its own 12-col grid for featured/alts. */}
+      {/* Inner cards grid — lives inside the right-hand col-span-6 of
+          the outer 12-col. The narrower right column naturally shrinks
+          each card so the trio fits in a typical laptop viewport
+          without scrolling. */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 min-h-[280px] md:min-h-[420px]">
         <AnimatePresence mode="wait">
           {picks?.length === 0 ? (

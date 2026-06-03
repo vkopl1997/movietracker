@@ -87,80 +87,100 @@ function BrowseUsersPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-1">Users</h1>
-        <p className="text-sm text-neutral-500 dark:text-white/50">
-          Everyone tracking movies on MovieTracker.
-        </p>
-      </header>
+      <section className="w-full">
+        <div className="
+          rounded-lg bg-surface-1 border border-white/[0.08]
+          shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+          overflow-hidden
+        ">
+          {/* ── Section: header (title + subtitle + count) ── */}
+          <div className="px-5 sm:px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap border-b border-white/[0.06]">
+            <div>
+              <h1 className="text-[15px] font-semibold tracking-tight text-white">Users</h1>
+              <p className="mt-1.5 text-[12px] text-white/45">
+                Everyone tracking movies on MovieTracker.
+              </p>
+            </div>
+            {!loading && (
+              <span className="text-[12px] text-white/45">
+                {visible.length} {visible.length === 1 ? 'user' : 'users'}
+              </span>
+            )}
+          </div>
 
-      <div className="flex flex-wrap items-center gap-3 mb-8">
-        <input
-          type="text"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by name…"
-          className="
-            flex-1 max-w-md min-w-[200px] px-4 py-2.5 rounded-full text-sm
-            bg-black/5 dark:bg-white/5
-            border border-black/10 dark:border-white/10
-            text-neutral-900 dark:text-white
-            placeholder:text-neutral-400 dark:placeholder:text-white/40
-            focus:outline-none focus:border-brand transition
-          "
-        />
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="
-            px-3 py-2 rounded-full text-sm
-            bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-            border border-black/10 dark:border-white/10
-            text-neutral-700 dark:text-white/70
-            focus:outline-none focus:border-brand transition
-          "
-        >
-          <option value="likes">Sort: Most liked</option>
-          <option value="recent">Sort: Recently joined</option>
-          <option value="alpha">Sort: A → Z</option>
-        </select>
-      </div>
+          {/* ── Section: filters (search input + sort dropdown) ── */}
+          <div className="px-5 sm:px-6 py-3.5 flex flex-wrap items-center gap-3 border-b border-white/[0.06]">
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter by name…"
+              className="
+                flex-1 max-w-md min-w-[200px] px-3 py-1.5 rounded-md text-[13px]
+                bg-white/[0.04] hover:bg-white/[0.06]
+                border border-white/[0.06]
+                text-white placeholder:text-white/35
+                focus:outline-none focus:border-white/20 focus:bg-white/[0.06]
+                transition
+              "
+            />
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="
+                px-2.5 py-1 rounded-md text-[12px] font-medium
+                bg-white/[0.04] hover:bg-white/[0.06]
+                border border-white/[0.06]
+                text-white/70 hover:text-white
+                focus:outline-none focus:border-white/20 transition
+              "
+            >
+              <option value="likes"  className="bg-surface-1 text-white">Sort: Most liked</option>
+              <option value="recent" className="bg-surface-1 text-white">Sort: Recently joined</option>
+              <option value="alpha"  className="bg-surface-1 text-white">Sort: A → Z</option>
+            </select>
+          </div>
 
-      {loading && <p className="text-neutral-500 dark:text-white/50">Loading…</p>}
+          {/* ── Section: body (loading / error / empty / grid) ── */}
+          <div className="p-5 sm:p-6">
+            {loading && <p className="text-[13px] text-white/50">Loading…</p>}
 
-      {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm">
-          ⚠️ {error}
-          <div className="mt-2 text-xs opacity-80">
-            If you see "relation … does not exist" — run the Supabase SQL from chat.
+            {error && (
+              <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 text-[13px]">
+                ⚠️ {error}
+                <div className="mt-2 text-[11px] opacity-80">
+                  If you see "relation … does not exist" — run the Supabase SQL from chat.
+                </div>
+              </div>
+            )}
+
+            {!loading && !error && visible.length === 0 && (
+              <p className="text-[13px] text-white/50">
+                {filter ? `No users matching "${filter}"` : 'No users yet.'}
+              </p>
+            )}
+
+            {visible.length > 0 && (
+              <motion.div
+                key={`${filter}-${sort}`}
+                variants={gridContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
+              >
+                {visible.map((u) => (
+                  <motion.div key={u.id} variants={cardVariant}>
+                    <UserCard
+                      {...u}
+                      onLikeChange={(state) => handleLikeChange(u.id, state)}
+                    />
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
           </div>
         </div>
-      )}
-
-      {!loading && !error && visible.length === 0 && (
-        <p className="text-neutral-500 dark:text-white/50">
-          {filter ? `No users matching "${filter}"` : 'No users yet.'}
-        </p>
-      )}
-
-      {visible.length > 0 && (
-        <motion.div
-          key={`${filter}-${sort}`}
-          variants={gridContainer}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"
-        >
-          {visible.map((u) => (
-            <motion.div key={u.id} variants={cardVariant}>
-              <UserCard
-                {...u}
-                onLikeChange={(state) => handleLikeChange(u.id, state)}
-              />
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
+      </section>
     </main>
   )
 }
@@ -175,15 +195,15 @@ function UserCard({
 
   return (
     <div className="group text-center">
-      {/* Avatar + name → link to profile */}
+      {/* Avatar + name → link to profile. Rectangular w/ rounded-md
+          corners to match the Linear table design. */}
       <Link to={`/user/${id}`} className="block">
         <div className="
-          aspect-square rounded-full overflow-hidden
-          bg-neutral-200 dark:bg-neutral-800
-          ring-1 ring-black/5 dark:ring-white/5
-          mb-3 transition
-          group-hover:ring-2 group-hover:ring-brand
-          group-hover:shadow-lg group-hover:shadow-brand/20
+          aspect-square rounded-md overflow-hidden
+          bg-white/[0.04]
+          ring-1 ring-white/10
+          mb-2.5 transition
+          group-hover:ring-brand
         ">
           {avatar_url ? (
             <img
@@ -194,17 +214,17 @@ function UserCard({
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl font-display text-brand bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-800">
+            <div className="w-full h-full flex items-center justify-center text-4xl font-display text-brand bg-gradient-to-br from-neutral-700 to-neutral-900">
               {initial}
             </div>
           )}
         </div>
 
-        <div className="text-sm font-semibold leading-tight line-clamp-1 group-hover:text-brand transition-colors">
+        <div className="text-[13px] font-semibold leading-tight line-clamp-1 text-white/85 group-hover:text-white transition-colors">
           {name}
         </div>
 
-        <div className="text-[11px] text-neutral-500 dark:text-white/50 mt-0.5">
+        <div className="text-[11px] text-white/45 mt-0.5">
           {movieCount} {movieCount === 1 ? 'movie' : 'movies'} · {tvCount} TV
         </div>
       </Link>

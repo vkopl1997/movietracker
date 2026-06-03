@@ -19,81 +19,67 @@ function MediaCard({ id, title, year, mediaType, posterUrl, rating }) {
   return (
     <div className="group relative">
       <Link to={`/${mediaType}/${id}`} state={backState} className="block">
+        {/* Poster — flat rounded-md surface, single subtle ring, no
+            translate-y or coloured glow on hover. Watched titles dim
+            slightly via opacity instead of saturate filter. */}
         <div className={`
-          relative aspect-[2/3] overflow-hidden rounded-xl
-          bg-neutral-200 dark:bg-neutral-900
-          ring-1 ring-black/5 dark:ring-white/5
-          transition duration-300
-          group-hover:ring-brand/60 group-hover:-translate-y-1
-          group-hover:shadow-[0_20px_40px_-15px_rgba(212,175,55,0.4)]
-          ${watched ? 'opacity-95' : ''}
+          relative aspect-[2/3] overflow-hidden rounded-md
+          bg-white/[0.04]
+          ring-1 ring-white/10
+          transition
+          group-hover:ring-brand
+          ${watched ? 'opacity-70' : ''}
         `}>
           {posterUrl ? (
             <img
               src={posterUrl}
               alt={title}
               loading="lazy"
-              className={`
-                w-full h-full object-cover
-                transition duration-500 group-hover:scale-105
-                ${watched ? 'saturate-50' : ''}
-              `}
+              className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-5xl bg-neutral-300 dark:bg-neutral-800">
+            <div className="w-full h-full flex items-center justify-center text-5xl bg-white/[0.04]">
               {mediaType === 'tv' ? '📺' : '🎬'}
             </div>
           )}
 
-          {/* Bottom gradient */}
-          <div className="
-            absolute inset-x-0 bottom-0 h-1/2
-            bg-gradient-to-t from-black/90 via-black/40 to-transparent
-            pointer-events-none
-          " />
-
-          {/* TMDb rating (top-left) */}
+          {/* TMDb rating (top-left) — single solid chip, no blur */}
           {rating !== null && rating > 0 && (
-            <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-sm text-xs font-semibold text-brand">
-              ★ {rating.toFixed(1)}
+            <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/70 text-[11px] font-semibold text-white">
+              <span className="text-brand">★</span> {rating.toFixed(1)}
             </div>
           )}
 
-          {/* Type badge */}
-          <span className={`
-            absolute top-2 right-2
-            px-2 py-0.5 rounded-md
-            text-[10px] font-bold uppercase tracking-wider
-            ${mediaType === 'tv' ? 'bg-purple-500/90 text-white' : 'bg-blue-500/90 text-white'}
-          `}>
-            {mediaType}
-          </span>
-
-          {/* "Watched" indicator (top-center) — shows when marked watched */}
+          {/* Watched checkmark (top-right) — minimal status indicator,
+              replaces the "WATCHED" word pill across the top. */}
           {watched && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 text-white text-[10px] font-bold uppercase tracking-wider">
-              ✓ Watched
+            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center" title="Watched">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-black">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
             </div>
           )}
+        </div>
 
-          {/* Title + year + your rating */}
-          <div className="absolute inset-x-0 bottom-0 p-3">
-            <div className="text-sm font-semibold leading-tight drop-shadow line-clamp-2 text-white">
-              {title}
-            </div>
-            <div className="flex items-center justify-between mt-0.5">
-              {year && <div className="text-xs text-white/70">{year}</div>}
-              {myRating != null && (
-                <div className="text-xs text-brand font-bold">
-                  {'★'.repeat(myRating)}<span className="opacity-30">{'★'.repeat(5 - myRating)}</span>
-                </div>
-              )}
-            </div>
+        {/* Title + year — sit on the dark page surface, not on the
+            poster. Cleanest possible: one line title + one line meta
+            with the user's rating tucked in if present. */}
+        <div className="mt-2 px-0.5">
+          <div className="text-[13px] font-semibold leading-tight text-white/90 group-hover:text-white transition-colors line-clamp-1">
+            {title}
+          </div>
+          <div className="flex items-center justify-between mt-0.5 text-[11px]">
+            <span className="text-white/45">{year || ''}</span>
+            {myRating != null && (
+              <span className="text-brand font-medium">
+                ★ {myRating}/5
+              </span>
+            )}
           </div>
         </div>
       </Link>
 
-      {/* Stacked action buttons (sibling of Link) */}
+      {/* Stacked action buttons (sibling of Link) — float over the poster */}
       <MediaActionsCompact item={item} />
     </div>
   )

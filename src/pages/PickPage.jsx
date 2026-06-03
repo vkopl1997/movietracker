@@ -2330,8 +2330,9 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         <div className="p-2 sm:p-3 grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 items-start">
 
       {/* ─── LEFT SIDEBAR (col-span-4): INNER framed table ──────────── */}
-      <aside className="md:col-span-4 md:sticky md:top-4 self-start">
+      <aside className="md:col-span-4 md:self-stretch flex">
         <div className="
+          w-full flex flex-col
           rounded-lg bg-surface-2 border border-white/[0.06]
           shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]
           overflow-hidden
@@ -2369,8 +2370,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
             )}
           </div>
 
-          {/* Filter section: Movies/TV/Both segmented */}
-          <div className="px-4 sm:px-5 py-3 border-b border-white/[0.06]">
+          {/* Filter section: Movies/TV/Both segmented — centered */}
+          <div className="px-4 sm:px-5 py-3 border-b border-white/[0.06] flex justify-center">
             <ResultsMediaTypeSwitcher
               mediaType={mediaType}
               onChange={onChangeMediaType}
@@ -2378,8 +2379,10 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
             />
           </div>
 
-          {/* Action section: Pick again + reset */}
-          <div className="px-4 sm:px-5 py-3 flex flex-col gap-2">
+          {/* Action section: Pick again + reset — pinned to the bottom
+              so the inner card stretches to match the right column's
+              height with the actions resting at its base. */}
+          <div className="px-4 sm:px-5 py-3 flex flex-col gap-2 mt-auto border-t border-white/[0.06]">
             <motion.button onClick={onPickAgain} disabled={loading}
               whileTap={loading ? {} : { scale: 0.98 }}
               className="w-full py-2.5 rounded-md bg-white hover:bg-white/90 text-black font-medium text-[13px] transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
@@ -2430,15 +2433,15 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           ) : picks?.length > 0 ? (
             <>
               {/* FEATURED (top pick) — col-span-8 of the right column.
-                  Fills the column width now that it sits inside its own
-                  framed card. */}
+                  max-w-[80%] keeps the featured poster at its earlier
+                  height; the alts on the right take full col width. */}
               <motion.div
                 key={`featured-${round}-${picks[0].id}`}
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-                className="md:col-span-8 w-full relative group will-change-transform"
+                className="md:col-span-8 w-full md:max-w-[80%] md:mx-auto relative group will-change-transform"
               >
                 <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-brand text-black text-[10px] font-bold tracking-wider uppercase shadow-lg">
                   ★ Top pick

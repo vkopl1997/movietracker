@@ -37,11 +37,20 @@ export function AuthProvider({ children }) {
 
   // Action: trigger Google OAuth flow.
   // Supabase redirects the user to Google, then back to our app.
+  //
+  // `prompt: 'select_account'` forces Google to show the account picker
+  // every time, so users who are signed into multiple Google accounts
+  // can choose which one. Without it Google silently re-uses the most
+  // recent session — which surprises users who tested with one account
+  // and now want to switch to another.
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin, // come back to this app after auth
+        queryParams: {
+          prompt: 'select_account',
+        },
       },
     })
     if (error) console.error('Sign-in error:', error)

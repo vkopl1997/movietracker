@@ -114,21 +114,13 @@ function Navbar() {
             {user ? (
               <UserMenu />
             ) : (
-              <>
-                <button
-                  onClick={signInWithGoogle}
-                  className="hidden sm:block text-[14px] text-white/60 hover:text-white transition"
-                >
-                  Log in
-                </button>
-                {/* Sign-up = the white pill primary, Linear's signature CTA */}
-                <button
-                  onClick={signInWithGoogle}
-                  className="px-3 py-1.5 rounded-md bg-white hover:bg-white/90 text-black text-[13px] font-medium transition"
-                >
-                  Sign up
-                </button>
-              </>
+              /* Single Sign-in CTA — white pill, Linear's primary button. */
+              <button
+                onClick={signInWithGoogle}
+                className="px-3 py-1.5 rounded-md bg-white hover:bg-white/90 text-black text-[13px] font-medium transition"
+              >
+                Sign in
+              </button>
             )}
           </div>
         </div>

@@ -2329,10 +2329,12 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       ">
         <div className="p-2 sm:p-3 grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 items-start">
 
-      {/* ─── LEFT SIDEBAR (col-span-6 = 50%): INNER framed table ──── */}
-      <aside className="md:col-span-6 md:self-stretch flex">
+      {/* ─── LEFT SIDEBAR (col-span-6 = 50% width): INNER framed table.
+          self-start so the panel hugs its own content height instead
+          of stretching to match the right column. */}
+      <aside className="md:col-span-6 md:self-start">
         <div className="
-          w-full flex flex-col
+          w-full
           rounded-lg bg-surface-2 border border-white/[0.06]
           shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]
           overflow-hidden
@@ -2379,10 +2381,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
             />
           </div>
 
-          {/* Action section: Pick again + reset — pinned to the bottom
-              so the inner card stretches to match the right column's
-              height with the actions resting at its base. */}
-          <div className="px-4 sm:px-5 py-3 flex flex-col gap-2 mt-auto border-t border-white/[0.06]">
+          {/* Action section: Pick again + reset */}
+          <div className="px-4 sm:px-5 py-3 flex flex-col gap-2 border-t border-white/[0.06]">
             <motion.button onClick={onPickAgain} disabled={loading}
               whileTap={loading ? {} : { scale: 0.98 }}
               className="w-full py-2.5 rounded-md bg-white hover:bg-white/90 text-black font-medium text-[13px] transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
@@ -2485,7 +2485,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.08 + idx * 0.06 }}
-                    className="w-full relative group will-change-transform"
+                    className="w-full md:max-w-[80%] md:mx-auto relative group will-change-transform"
                   >
                     <button
                       onClick={() => onDismiss(pick)}

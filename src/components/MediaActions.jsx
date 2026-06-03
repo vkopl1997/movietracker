@@ -1,14 +1,58 @@
-// MediaActions — reusable cluster of status buttons (♥ ✓ 🔖) + rating + note.
+// MediaActions — reusable cluster of status buttons + rating + note.
 // Two visual modes:
 //   - "compact" (used on cards, hover-revealed icons only)
-//   - "full"    (used on detail pages, large buttons + rating widget + note)
+//   - "full"    (used on detail pages, Linear-style properties list)
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
 import { useFavorites } from '../lib/FavoritesContext'
 
-// ── Reusable status icon button (used in compact mode) ───────────────
+// ── Inline SVG icons in Linear's style — small, geometric, currentColor ──
+
+function HeartIcon({ filled, className = '' }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
+function CheckCircleIcon({ filled, className = '' }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="9 12 11 14 16 9" stroke={filled ? '#08080A' : 'currentColor'} />
+    </svg>
+  )
+}
+
+function BookmarkIcon({ filled, className = '' }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
+function StarIcon({ filled, className = '' }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  )
+}
+
+function NoteIcon({ className = '' }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
+}
+
+// ── Compact mode (cards) — unchanged behaviour, icon-only floating cluster
 function StatusButton({ active, onClick, color, icon, label }) {
   return (
     <motion.button
@@ -20,11 +64,11 @@ function StatusButton({ active, onClick, color, icon, label }) {
       title={label}
       aria-label={label}
       className={`
-        w-9 h-9 rounded-full flex items-center justify-center text-base
-        backdrop-blur-sm transition-colors
+        w-8 h-8 rounded-md flex items-center justify-center
+        transition-colors
         ${active
           ? `${color} text-black`
-          : 'bg-black/60 text-white hover:bg-white/90 hover:text-black'}
+          : 'bg-black/60 text-white/80 hover:bg-white/90 hover:text-black'}
       `}
     >
       {icon}
@@ -32,7 +76,6 @@ function StatusButton({ active, onClick, color, icon, label }) {
   )
 }
 
-// ── Compact mode — icons only, for cards ─────────────────────────────
 export function MediaActionsCompact({ item }) {
   const { user } = useAuth()
   const {
@@ -45,32 +88,37 @@ export function MediaActionsCompact({ item }) {
   const fav = isFavorite(item)
   const watched = isWatched(item)
   const wl = isWatchlist(item)
-  // Always show buttons that are already ON; the rest fade in on hover.
   const anyOn = fav || watched || wl
 
   return (
     <div className={`
-      absolute bottom-3 right-3 z-10 flex flex-col items-end gap-2
+      absolute bottom-3 right-3 z-10 flex flex-col items-end gap-1.5
       ${anyOn ? '' : 'opacity-0 group-hover:opacity-100'}
       transition-opacity
     `}>
       <StatusButton
         active={fav} onClick={() => toggleFavorite(item)}
-        color="bg-brand" icon="♥" label="Favorite"
+        color="bg-pink-400" icon={<HeartIcon filled />} label="Favorite"
       />
       <StatusButton
         active={watched} onClick={() => toggleWatched(item)}
-        color="bg-emerald-400" icon="✓" label="Watched"
+        color="bg-emerald-400" icon={<CheckCircleIcon filled />} label="Watched"
       />
       <StatusButton
         active={wl} onClick={() => toggleWatchlist(item)}
-        color="bg-sky-400" icon="🔖" label="Watchlist"
+        color="bg-sky-400" icon={<BookmarkIcon filled />} label="Watchlist"
       />
     </div>
   )
 }
 
-// ── Full mode — labeled buttons + rating + note (for detail page) ────
+// ─────────────────────────────────────────────────────────────────────
+// FULL mode — Linear-style properties panel
+//
+// Vertical list of rows. Each row has a small icon (currentColor) + label.
+// Hover: bg-white/[0.04]. Active state colors the icon and label.
+// No pill buttons, no shadows, no gradients — Linear's reading rhythm.
+// ─────────────────────────────────────────────────────────────────────
 export function MediaActionsFull({ item }) {
   const { user, signInWithGoogle } = useAuth()
   const {
@@ -80,12 +128,13 @@ export function MediaActionsFull({ item }) {
 
   const [noteDraft, setNoteDraft] = useState(getNote(item))
   const [noteOpen, setNoteOpen]   = useState(!!getNote(item))
+  const [hoverStar, setHoverStar] = useState(0)
 
   if (!user) {
     return (
       <button
         onClick={signInWithGoogle}
-        className="px-5 py-2.5 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition"
+        className="px-4 py-2 rounded-md bg-white hover:bg-white/90 text-black text-[13px] font-medium transition"
       >
         Sign in to track this
       </button>
@@ -97,123 +146,122 @@ export function MediaActionsFull({ item }) {
   const wl = isWatchlist(item)
   const userRating = getUserRating(item)
 
-  // Star rating component — 5 clickable stars, hover preview
-  const [hoverStar, setHoverStar] = useState(0)
-  function Stars() {
+  // ── Row primitive — icon + label, optional right-side content ──────
+  function Row({ icon, label, active, onClick, accent, children }) {
+    const baseClass = 'w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left text-[13px] transition-colors'
+    const stateClass = active
+      ? `text-white ${accent}` // active text white, icon coloured below
+      : 'text-white/70 hover:bg-white/[0.04] hover:text-white'
+    if (onClick) {
+      return (
+        <button onClick={onClick} className={`${baseClass} ${stateClass} group`}>
+          {icon}
+          <span className="flex-1">{label}</span>
+          {children}
+        </button>
+      )
+    }
     return (
-      <div className="flex items-center gap-1">
-        {[1, 2, 3, 4, 5].map((n) => {
-          const active = (hoverStar || userRating || 0) >= n
-          return (
-            <button
-              key={n}
-              type="button"
-              onMouseEnter={() => setHoverStar(n)}
-              onMouseLeave={() => setHoverStar(0)}
-              onClick={() => setRating(item, n === userRating ? null : n)}
-              className={`text-2xl transition-transform hover:scale-125 ${
-                active ? 'text-brand' : 'text-neutral-400 dark:text-white/30'
-              }`}
-              aria-label={`Rate ${n} star${n === 1 ? '' : 's'}`}
-            >
-              ★
-            </button>
-          )
-        })}
-        {userRating != null && (
-          <button
-            onClick={() => setRating(item, null)}
-            className="ml-2 text-xs text-neutral-500 dark:text-white/50 hover:text-brand"
-          >
-            Clear
-          </button>
-        )}
+      <div className={`${baseClass} ${active ? 'text-white' : 'text-white/70'}`}>
+        {icon}
+        <span className="flex-1">{label}</span>
+        {children}
       </div>
     )
   }
 
-  // Common pill-button class
-  const pillBase = 'px-4 py-2.5 rounded-full font-semibold text-sm transition flex items-center gap-2'
-
   return (
-    <div className="space-y-5">
-      {/* Status buttons row */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => toggleFavorite(item)}
-          className={`${pillBase} ${fav
-            ? 'bg-brand text-black hover:bg-brand-light'
-            : 'bg-black/5 hover:bg-black/10 border border-black/10 text-neutral-900 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white'
-          }`}
-        >
-          <span>{fav ? '♥' : '♡'}</span>
-          {fav ? 'Favorited' : 'Favorite'}
-        </button>
-
-        <button
-          onClick={() => toggleWatched(item)}
-          className={`${pillBase} ${watched
-            ? 'bg-emerald-500 text-white hover:bg-emerald-400'
-            : 'bg-black/5 hover:bg-black/10 border border-black/10 text-neutral-900 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white'
-          }`}
-        >
-          <span>{watched ? '✓' : '○'}</span>
-          {watched ? 'Watched' : 'Mark watched'}
-        </button>
-
-        <button
-          onClick={() => toggleWatchlist(item)}
-          className={`${pillBase} ${wl
-            ? 'bg-sky-500 text-white hover:bg-sky-400'
-            : 'bg-black/5 hover:bg-black/10 border border-black/10 text-neutral-900 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white'
-          }`}
-        >
-          <span>🔖</span>
-          {wl ? 'On watchlist' : 'Watchlist'}
-        </button>
+    <div className="w-full max-w-xs space-y-0.5">
+      {/* Section header — Linear's "Labels" style */}
+      <div className="px-2 pb-1.5 text-[10px] tracking-[0.15em] uppercase text-white/40 font-medium">
+        Status
       </div>
 
-      {/* Rating */}
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-neutral-500 dark:text-white/60">Your rating</span>
-        <Stars />
+      <Row
+        icon={<HeartIcon filled={fav} className={fav ? 'text-pink-400' : 'text-white/45 group-hover:text-white/80'} />}
+        label={fav ? 'Favorited' : 'Favorite'}
+        active={fav}
+        onClick={() => toggleFavorite(item)}
+      />
+
+      <Row
+        icon={<CheckCircleIcon filled={watched} className={watched ? 'text-emerald-400' : 'text-white/45 group-hover:text-white/80'} />}
+        label={watched ? 'Watched' : 'Mark as watched'}
+        active={watched}
+        onClick={() => toggleWatched(item)}
+      />
+
+      <Row
+        icon={<BookmarkIcon filled={wl} className={wl ? 'text-sky-400' : 'text-white/45 group-hover:text-white/80'} />}
+        label={wl ? 'On watchlist' : 'Add to watchlist'}
+        active={wl}
+        onClick={() => toggleWatchlist(item)}
+      />
+
+      {/* Section divider */}
+      <div className="pt-3 pb-1.5 px-2 text-[10px] tracking-[0.15em] uppercase text-white/40 font-medium">
+        Personal
       </div>
 
-      {/* Note */}
-      <div>
-        {!noteOpen ? (
-          <button
-            onClick={() => setNoteOpen(true)}
-            className="text-sm text-neutral-500 dark:text-white/60 hover:text-brand"
-          >
-            + Add a note
-          </button>
-        ) : (
-          <div>
-            <textarea
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              onBlur={() => {
-                if (noteDraft !== getNote(item)) saveNote(item, noteDraft.trim())
-              }}
-              placeholder="Private note about this title…"
-              rows={3}
-              className="
-                w-full max-w-2xl px-4 py-3 rounded-xl text-sm
-                bg-black/5 dark:bg-white/5
-                border border-black/10 dark:border-white/10
-                text-neutral-900 dark:text-white
-                placeholder:text-neutral-400 dark:placeholder:text-white/40
-                focus:outline-none focus:border-brand
-                transition resize-none
-              "
-            />
-            <div className="text-[11px] text-neutral-400 dark:text-white/40 mt-1">
-              Saves automatically when you click away.
-            </div>
+      {/* Rating row — icon + label on the left, 5 stars on the right */}
+      <div className="flex items-center gap-2.5 px-2 py-1.5 text-[13px]">
+        <StarIcon
+          filled={userRating != null}
+          className={userRating != null ? 'text-brand' : 'text-white/45'}
+        />
+        <span className={`flex-1 ${userRating != null ? 'text-white' : 'text-white/70'}`}>
+          {userRating != null ? `${userRating}/5` : 'Rate it'}
+        </span>
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((n) => {
+            const active = (hoverStar || userRating || 0) >= n
+            return (
+              <button
+                key={n}
+                type="button"
+                onMouseEnter={() => setHoverStar(n)}
+                onMouseLeave={() => setHoverStar(0)}
+                onClick={() => setRating(item, n === userRating ? null : n)}
+                className={`text-sm leading-none transition-transform hover:scale-110 ${
+                  active ? 'text-brand' : 'text-white/25'
+                }`}
+                aria-label={`Rate ${n} star${n === 1 ? '' : 's'}`}
+              >
+                ★
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Note row — toggles to a textarea below */}
+      {!noteOpen ? (
+        <Row
+          icon={<NoteIcon className="text-white/45 group-hover:text-white/80" />}
+          label="Add a note"
+          onClick={() => setNoteOpen(true)}
+        />
+      ) : (
+        <div className="px-2 py-1.5">
+          <div className="flex items-center gap-2.5 mb-1.5 text-[13px] text-white/70">
+            <NoteIcon className="text-white/45" />
+            <span>Your note</span>
           </div>
-        )}
-      </div>
+          <textarea
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onBlur={() => {
+              if (noteDraft !== getNote(item)) saveNote(item, noteDraft.trim())
+            }}
+            placeholder="Private note about this title…"
+            rows={3}
+            className="w-full px-2.5 py-2 rounded-md text-[13px] bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition resize-none"
+          />
+          <div className="text-[10px] text-white/35 mt-1">
+            Saves when you click away.
+          </div>
+        </div>
+      )}
     </div>
   )
 }

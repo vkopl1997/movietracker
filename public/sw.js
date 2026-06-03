@@ -11,7 +11,7 @@
 // We update the version with each deploy via a sed step (see scripts).
 // ──────────────────────────────────────────────────────────────────────
 
-const CACHE_VERSION = 'v6'
+const CACHE_VERSION = 'v7'
 const SHELL_CACHE   = `mt-shell-${CACHE_VERSION}`
 const IMAGE_CACHE   = `mt-images-${CACHE_VERSION}`
 const API_CACHE     = `mt-api-${CACHE_VERSION}`
@@ -87,13 +87,24 @@ self.addEventListener('fetch', (event) => {
 })
 
 // ── Strategy helpers ───────────────────────────────────────────────
+// cacheFirst: serve from cache when present, otherwise go to network.
+// If the network returns a hard failure (404 / 5xx), evict the entry
+// from cache and DO NOT cache the failure. This matters for hashed
+// /assets/* — when a stale `index.html` references a JS hash Vercel
+// has since deleted, we want the request to fail in a way the bail-out
+// in index.html can detect, not silently cache a 404.
 async function cacheFirst(request, cacheName) {
   const cache  = await caches.open(cacheName)
   const cached = await cache.match(request)
   if (cached) return cached
   try {
     const res = await fetch(request)
-    if (res.ok) cache.put(request, res.clone())
+    if (res.ok) {
+      cache.put(request, res.clone())
+    } else {
+      // Don't poison the cache with errors.
+      await cache.delete(request)
+    }
     return res
   } catch {
     return new Response('Offline', { status: 503 })

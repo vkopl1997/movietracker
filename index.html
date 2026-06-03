@@ -33,6 +33,47 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!--
+      ── Service-worker bailout safety net ──────────────────────────
+      If the React app fails to mount within 5 seconds of page load,
+      assume we're being served a stale `index.html` (from an old SW
+      cache) that references a JS bundle hash Vercel has since deleted.
+      Recover by unregistering every SW + wiping every Cache Storage
+      entry, then reloading once.
+
+      The sessionStorage flag prevents an infinite loop if the bailout
+      itself fails — we only try this rescue once per tab session.
+
+      Has zero cost on healthy loads: the React root mounts in well
+      under 5s, so the bail-out check just no-ops and exits.
+    -->
+    <script>
+      (function () {
+        if (sessionStorage.getItem('mt_sw_bailout') === '1') return;
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (!root || root.children.length > 0) return;
+          if (!('serviceWorker' in navigator)) return;
+          sessionStorage.setItem('mt_sw_bailout', '1');
+          Promise.resolve()
+            .then(function () {
+              return navigator.serviceWorker.getRegistrations().then(function (rs) {
+                return Promise.all(rs.map(function (r) { return r.unregister(); }));
+              });
+            })
+            .then(function () {
+              if (!('caches' in window)) return;
+              return caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              });
+            })
+            .then(function () { window.location.reload(); })
+            .catch(function () { window.location.reload(); });
+        }, 5000);
+      })();
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -171,97 +171,109 @@ export function MediaActionsFull({ item }) {
   }
 
   return (
-    <div className="w-full max-w-xs space-y-0.5">
-      {/* Section header — Linear's "Labels" style */}
-      <div className="px-2 pb-1.5 text-[10px] tracking-[0.15em] uppercase text-white/40 font-medium">
-        Status
-      </div>
+    <div className="w-full max-w-2xl rounded-lg bg-surface-1 border border-white/[0.08] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-white/[0.06]">
 
-      <Row
-        icon={<HeartIcon filled={fav} className={fav ? 'text-pink-400' : 'text-white/45 group-hover:text-white/80'} />}
-        label={fav ? 'Favorited' : 'Favorite'}
-        active={fav}
-        onClick={() => toggleFavorite(item)}
-      />
-
-      <Row
-        icon={<CheckCircleIcon filled={watched} className={watched ? 'text-emerald-400' : 'text-white/45 group-hover:text-white/80'} />}
-        label={watched ? 'Watched' : 'Mark as watched'}
-        active={watched}
-        onClick={() => toggleWatched(item)}
-      />
-
-      <Row
-        icon={<BookmarkIcon filled={wl} className={wl ? 'text-sky-400' : 'text-white/45 group-hover:text-white/80'} />}
-        label={wl ? 'On watchlist' : 'Add to watchlist'}
-        active={wl}
-        onClick={() => toggleWatchlist(item)}
-      />
-
-      {/* Section divider */}
-      <div className="pt-3 pb-1.5 px-2 text-[10px] tracking-[0.15em] uppercase text-white/40 font-medium">
-        Personal
-      </div>
-
-      {/* Rating row — icon + label on the left, 5 stars on the right */}
-      <div className="flex items-center gap-2.5 px-2 py-1.5 text-[13px]">
-        <StarIcon
-          filled={userRating != null}
-          className={userRating != null ? 'text-brand' : 'text-white/45'}
-        />
-        <span className={`flex-1 ${userRating != null ? 'text-white' : 'text-white/70'}`}>
-          {userRating != null ? `${userRating}/5` : 'Rate it'}
-        </span>
-        <div className="flex items-center gap-0.5">
-          {[1, 2, 3, 4, 5].map((n) => {
-            const active = (hoverStar || userRating || 0) >= n
-            return (
-              <button
-                key={n}
-                type="button"
-                onMouseEnter={() => setHoverStar(n)}
-                onMouseLeave={() => setHoverStar(0)}
-                onClick={() => setRating(item, n === userRating ? null : n)}
-                className={`text-sm leading-none transition-transform hover:scale-110 ${
-                  active ? 'text-brand' : 'text-white/25'
-                }`}
-                aria-label={`Rate ${n} star${n === 1 ? '' : 's'}`}
-              >
-                ★
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Note row — toggles to a textarea below */}
-      {!noteOpen ? (
-        <Row
-          icon={<NoteIcon className="text-white/45 group-hover:text-white/80" />}
-          label="Add a note"
-          onClick={() => setNoteOpen(true)}
-        />
-      ) : (
-        <div className="px-2 py-1.5">
-          <div className="flex items-center gap-2.5 mb-1.5 text-[13px] text-white/70">
-            <NoteIcon className="text-white/45" />
-            <span>Your note</span>
+        {/* ── Left column: STATUS ───────────────────────────────────── */}
+        <div className="flex flex-col">
+          <div className="px-3 pt-3 pb-1.5 text-[10px] tracking-[0.15em] uppercase text-white/40 font-medium border-b border-white/[0.06]">
+            Status
           </div>
-          <textarea
-            value={noteDraft}
-            onChange={(e) => setNoteDraft(e.target.value)}
-            onBlur={() => {
-              if (noteDraft !== getNote(item)) saveNote(item, noteDraft.trim())
-            }}
-            placeholder="Private note about this title…"
-            rows={3}
-            className="w-full px-2.5 py-2 rounded-md text-[13px] bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition resize-none"
-          />
-          <div className="text-[10px] text-white/35 mt-1">
-            Saves when you click away.
+          <div className="p-1 space-y-0.5">
+            <Row
+              icon={<HeartIcon filled={fav} className={fav ? 'text-pink-400' : 'text-white/45 group-hover:text-white/80'} />}
+              label={fav ? 'Favorited' : 'Favorite'}
+              active={fav}
+              onClick={() => toggleFavorite(item)}
+            />
+
+            <Row
+              icon={<CheckCircleIcon filled={watched} className={watched ? 'text-emerald-400' : 'text-white/45 group-hover:text-white/80'} />}
+              label={watched ? 'Watched' : 'Mark as watched'}
+              active={watched}
+              onClick={() => toggleWatched(item)}
+            />
+
+            <Row
+              icon={<BookmarkIcon filled={wl} className={wl ? 'text-sky-400' : 'text-white/45 group-hover:text-white/80'} />}
+              label={wl ? 'On watchlist' : 'Add to watchlist'}
+              active={wl}
+              onClick={() => toggleWatchlist(item)}
+            />
           </div>
         </div>
-      )}
+
+        {/* ── Right column: PERSONAL ────────────────────────────────── */}
+        <div className="flex flex-col border-t sm:border-t-0 border-white/[0.06]">
+          <div className="px-3 pt-3 pb-1.5 text-[10px] tracking-[0.15em] uppercase text-white/40 font-medium border-b border-white/[0.06]">
+            Personal
+          </div>
+          <div className="p-1 space-y-0.5">
+
+            {/* Rating row — icon + label on the left, 5 stars on the right */}
+            <div className="flex items-center gap-2.5 px-2 py-1.5 text-[13px]">
+              <StarIcon
+                filled={userRating != null}
+                className={userRating != null ? 'text-brand' : 'text-white/45'}
+              />
+              <span className={`flex-1 ${userRating != null ? 'text-white' : 'text-white/70'}`}>
+                {userRating != null ? `${userRating}/5` : 'Rate it'}
+              </span>
+              <div className="flex items-center gap-0.5">
+                {[1, 2, 3, 4, 5].map((n) => {
+                  const active = (hoverStar || userRating || 0) >= n
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onMouseEnter={() => setHoverStar(n)}
+                      onMouseLeave={() => setHoverStar(0)}
+                      onClick={() => setRating(item, n === userRating ? null : n)}
+                      className={`text-sm leading-none transition-transform hover:scale-110 ${
+                        active ? 'text-brand' : 'text-white/25'
+                      }`}
+                      aria-label={`Rate ${n} star${n === 1 ? '' : 's'}`}
+                    >
+                      ★
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Note row — toggles to a textarea below */}
+            {!noteOpen ? (
+              <Row
+                icon={<NoteIcon className="text-white/45 group-hover:text-white/80" />}
+                label="Add a note"
+                onClick={() => setNoteOpen(true)}
+              />
+            ) : (
+              <div className="px-2 py-1.5">
+                <div className="flex items-center gap-2.5 mb-1.5 text-[13px] text-white/70">
+                  <NoteIcon className="text-white/45" />
+                  <span>Your note</span>
+                </div>
+                <textarea
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  onBlur={() => {
+                    if (noteDraft !== getNote(item)) saveNote(item, noteDraft.trim())
+                  }}
+                  placeholder="Private note about this title…"
+                  rows={3}
+                  className="w-full px-2.5 py-2 rounded-md text-[13px] bg-white/[0.04] border border-white/[0.08] text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition resize-none"
+                />
+                <div className="text-[10px] text-white/35 mt-1">
+                  Saves when you click away.
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+      </div>
     </div>
   )
 }

@@ -11,35 +11,52 @@
 // We update the version with each deploy via a sed step (see scripts).
 // ──────────────────────────────────────────────────────────────────────
 
-const CACHE_VERSION = 'v4'
+const CACHE_VERSION = 'v6'
 const SHELL_CACHE   = `mt-shell-${CACHE_VERSION}`
 const IMAGE_CACHE   = `mt-images-${CACHE_VERSION}`
 const API_CACHE     = `mt-api-${CACHE_VERSION}`
 const MY_CACHES     = [SHELL_CACHE, IMAGE_CACHE, API_CACHE]
 
 // ── Install ─────────────────────────────────────────────────────────
+// IMPORTANT: use `cache: 'reload'` so the install bypasses the HTTP cache
+// AND any older SW cache layer. Otherwise a stale `index.html` (pointing
+// at the previous bundle's hashed JS) can get baked into the new SW's
+// shell cache on first install and stick around until the next bump.
 self.addEventListener('install', (event) => {
+  const urls = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest']
   event.waitUntil(
     caches.open(SHELL_CACHE).then((cache) =>
-      cache.addAll(['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'])
-        .catch(() => { /* first-install offline — non-fatal */ })
+      Promise.all(
+        urls.map((url) =>
+          fetch(new Request(url, { cache: 'reload' }))
+            .then((res) => res.ok ? cache.put(url, res) : null)
+            .catch(() => { /* first-install offline — non-fatal */ })
+        )
+      )
     )
   )
   self.skipWaiting()
 })
 
-// ── Activate — clean up old caches ──────────────────────────────────
+// ── Activate — clean up old caches + notify clients to reload ──────
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(
-        names
-          .filter((n) => n.startsWith('mt-') && !MY_CACHES.includes(n))
-          .map((n) => caches.delete(n))
-      )
+  event.waitUntil((async () => {
+    const names = await caches.keys()
+    await Promise.all(
+      names
+        .filter((n) => n.startsWith('mt-') && !MY_CACHES.includes(n))
+        .map((n) => caches.delete(n))
     )
-  )
-  self.clients.claim()
+    await self.clients.claim()
+
+    // Belt-and-suspenders: broadcast to any controlled clients in case the
+    // `controllerchange` listener on the page didn't fire (older browsers,
+    // edge cases). Pages can choose to reload on receiving this.
+    const clients = await self.clients.matchAll({ type: 'window' })
+    for (const client of clients) {
+      client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION })
+    }
+  })())
 })
 
 // ── Fetch — route requests through strategies ──────────────────────

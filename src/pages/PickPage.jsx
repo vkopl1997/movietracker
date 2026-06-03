@@ -2327,7 +2327,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
         overflow-hidden
       ">
-        <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-6 items-start">
+        <div className="p-2 sm:p-3 grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 items-start">
 
       {/* ─── LEFT SIDEBAR (col-span-4): INNER framed table ──────────── */}
       <aside className="md:col-span-4 md:sticky md:top-4 self-start">
@@ -2406,8 +2406,13 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         </div>
       </aside>
 
-      {/* ─── RIGHT (col-span-8): the cards ─────────────────────────── */}
+      {/* ─── RIGHT (col-span-8): INNER framed table holding the cards ── */}
       <div className="md:col-span-8">
+      <div className="
+        rounded-lg bg-surface-2 border border-white/[0.06]
+        shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]
+        overflow-hidden p-3 sm:p-4
+      ">
 
       {/* Hero + sidebar results: the top pick (highest score) is the
           FEATURED card on the left at ~3x size; the two alternatives
@@ -2425,15 +2430,15 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           ) : picks?.length > 0 ? (
             <>
               {/* FEATURED (top pick) — col-span-8 of the right column.
-                  max-w-[80%] mx-auto shrinks the actual card to 80% of the
-                  column width so it sits at the proportions the user wants. */}
+                  Fills the column width now that it sits inside its own
+                  framed card. */}
               <motion.div
                 key={`featured-${round}-${picks[0].id}`}
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-                className="md:col-span-8 w-full md:max-w-[80%] md:mx-auto relative group will-change-transform"
+                className="md:col-span-8 w-full relative group will-change-transform"
               >
                 <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-brand text-black text-[10px] font-bold tracking-wider uppercase shadow-lg">
                   ★ Top pick
@@ -2475,7 +2480,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.08 + idx * 0.06 }}
-                    className="w-full md:max-w-[80%] md:mx-auto relative group will-change-transform"
+                    className="w-full relative group will-change-transform"
                   >
                     <button
                       onClick={() => onDismiss(pick)}
@@ -2503,6 +2508,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           ) : null}
         </AnimatePresence>
       </div>
+      </div>{/* /right inner framed table */}
       </div>{/* /right column */}
 
         </div>{/* /outer grid */}

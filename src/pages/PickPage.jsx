@@ -2335,8 +2335,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       <aside className="md:col-span-3 md:self-start">
         <div className="
           w-full
-          rounded-lg bg-surface-2 border border-white/[0.06]
-          shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]
+          rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
+          shadow-2xl shadow-black/30
           overflow-hidden
         ">
           {/* Header section: eyebrow + title + subtitle */}
@@ -2412,8 +2412,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       {/* ─── RIGHT (col-span-7 of 10 = 70%): INNER framed table holding cards ── */}
       <div className="md:col-span-7">
       <div className="
-        rounded-lg bg-surface-2 border border-white/[0.06]
-        shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]
+        rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
+        shadow-2xl shadow-black/30
         overflow-hidden p-3 sm:p-4
       ">
 

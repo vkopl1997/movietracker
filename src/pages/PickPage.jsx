@@ -2319,68 +2319,91 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-6 items-start"
+      className="w-full"
     >
-      {/* ─── LEFT SIDEBAR (col-span-4): heading + meta + actions ─────── */}
-      <aside className="md:col-span-4 md:sticky md:top-4 self-start space-y-3">
-        <div className="text-[10px] sm:text-[11px] font-medium tracking-[0.18em] text-brand uppercase">
-          AI Pick
-        </div>
-        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[-0.03em] leading-[1.05] text-white">
-          What should I watch?
-        </h1>
-        <p className="text-[13px] text-white/55">
-          Start with a movie you love — or skip and pick by theme.
-        </p>
+      {/* OUTER framed table — wraps the whole results view */}
+      <div className="
+        rounded-lg bg-surface-1 border border-white/[0.08]
+        shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+        overflow-hidden
+      ">
+        <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-6 items-start">
 
-        <p className="text-[13px] text-white/70 pt-1 italic">
-          <ResultsHeader />
-        </p>
+      {/* ─── LEFT SIDEBAR (col-span-4): INNER framed table ──────────── */}
+      <aside className="md:col-span-4 md:sticky md:top-4 self-start">
+        <div className="
+          rounded-lg bg-surface-2 border border-white/[0.06]
+          shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]
+          overflow-hidden
+        ">
+          {/* Header section: eyebrow + title + subtitle */}
+          <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-white/[0.06]">
+            <div className="text-[10px] sm:text-[11px] font-medium tracking-[0.18em] text-brand uppercase mb-2">
+              AI Pick
+            </div>
+            <h1 className="font-display text-2xl sm:text-3xl tracking-[-0.03em] leading-[1.05] text-white mb-2">
+              What should I watch?
+            </h1>
+            <p className="text-[13px] text-white/55">
+              Start with a movie you love — or skip and pick by theme.
+            </p>
+          </div>
 
-        {showScoreLine && (
-          <div className="space-y-1.5 pt-1">
-            {topScore != null && <ScoreBar score={topScore} />}
-            {(tasteProfile || topGenreLabels.length > 0) && (
-              <p className="text-[11px] text-white/40">
-                {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
-                {topGenreLabels.length > 0 && (
-                  <> · weights {topGenreLabels.join(', ')}</>
+          {/* Context section: "Picks like X" + score bar + taste line */}
+          <div className="px-4 sm:px-5 py-3 border-b border-white/[0.06] space-y-2">
+            <p className="text-[13px] text-white/70 italic">
+              <ResultsHeader />
+            </p>
+            {showScoreLine && (
+              <>
+                {topScore != null && <ScoreBar score={topScore} />}
+                {(tasteProfile || topGenreLabels.length > 0) && (
+                  <p className="text-[11px] text-white/40">
+                    {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
+                    {topGenreLabels.length > 0 && (
+                      <> · weights {topGenreLabels.join(', ')}</>
+                    )}
+                  </p>
                 )}
-              </p>
+              </>
             )}
           </div>
-        )}
 
-        <div className="pt-1">
-          <ResultsMediaTypeSwitcher
-            mediaType={mediaType}
-            onChange={onChangeMediaType}
-            disabled={loading}
-          />
+          {/* Filter section: Movies/TV/Both segmented */}
+          <div className="px-4 sm:px-5 py-3 border-b border-white/[0.06]">
+            <ResultsMediaTypeSwitcher
+              mediaType={mediaType}
+              onChange={onChangeMediaType}
+              disabled={loading}
+            />
+          </div>
+
+          {/* Action section: Pick again + reset */}
+          <div className="px-4 sm:px-5 py-3 flex flex-col gap-2">
+            <motion.button onClick={onPickAgain} disabled={loading}
+              whileTap={loading ? {} : { scale: 0.98 }}
+              className="w-full py-2.5 rounded-md bg-white hover:bg-white/90 text-black font-medium text-[13px] transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+            >
+              {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
+            </motion.button>
+            <button
+              onClick={onReset}
+              disabled={loading}
+              className="text-[13px] text-white/55 hover:text-white transition disabled:opacity-50 text-center"
+            >
+              or start over with a different mood
+            </button>
+          </div>
+
+          {/* Footer section: session excluded count */}
+          {picks?.length > 0 && seenCount > 0 && (
+            <div className="px-4 sm:px-5 py-2.5 border-t border-white/[0.06]">
+              <p className="text-[10px] text-white/30">
+                {seenCount} {seenCount === 1 ? 'title' : 'titles'} excluded from this session.
+              </p>
+            </div>
+          )}
         </div>
-
-        <div className="flex flex-col gap-2 pt-2">
-          {/* Linear-style primary CTA: white pill, black text */}
-          <motion.button onClick={onPickAgain} disabled={loading}
-            whileTap={loading ? {} : { scale: 0.98 }}
-            className="w-full py-2.5 rounded-md bg-white hover:bg-white/90 text-black font-medium text-[13px] transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
-          >
-            {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
-          </motion.button>
-          <button
-            onClick={onReset}
-            disabled={loading}
-            className="text-[13px] text-white/55 hover:text-white transition disabled:opacity-50 text-center"
-          >
-            or start over with a different mood
-          </button>
-        </div>
-
-        {picks?.length > 0 && seenCount > 0 && (
-          <p className="text-[10px] text-white/30 pt-1">
-            {seenCount} {seenCount === 1 ? 'title' : 'titles'} excluded from this session.
-          </p>
-        )}
       </aside>
 
       {/* ─── RIGHT (col-span-8): the cards ─────────────────────────── */}
@@ -2481,6 +2504,9 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         </AnimatePresence>
       </div>
       </div>{/* /right column */}
+
+        </div>{/* /outer grid */}
+      </div>{/* /outer framed table */}
     </motion.section>
   )
 }

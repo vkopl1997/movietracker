@@ -42,34 +42,39 @@ function TopUsersRow() {
   if (users.length === 0) return null
 
   return (
-    <section className="mb-16">
-      <div className="mb-5">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
-          <span className="inline-block w-1 h-7 bg-brand rounded-sm" />
-          Top users
-        </h2>
-        <p className="text-sm text-neutral-500 dark:text-white/50 mt-1 ml-4">
-          The most-liked people on MovieTracker
-        </p>
-      </div>
+    <section className="mb-16 w-full">
+      <div className="
+        rounded-lg bg-surface-1 border border-white/[0.08]
+        shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+        overflow-hidden
+      ">
+        {/* ── Section: header ── */}
+        <div className="px-5 sm:px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="text-[15px] font-semibold tracking-tight text-white">Top users</h2>
+          <p className="mt-1.5 text-[12px] text-white/45">
+            The most-liked people on MovieTracker
+          </p>
+        </div>
 
-      <div className="relative">
-        <ScrollArrows
-          canLeft={canLeft}
-          canRight={canRight}
-          onLeft={scrollLeft}
-          onRight={scrollRight}
-          topPercent="40%"
-        />
+        {/* ── Section: body (horizontal scroll of compact user cards) ── */}
+        <div className="relative p-4 sm:p-5">
+          <ScrollArrows
+            canLeft={canLeft}
+            canRight={canRight}
+            onLeft={scrollLeft}
+            onRight={scrollRight}
+            topPercent="40%"
+          />
 
-        <div
-          ref={ref}
-          className="-mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto scrollbar-hide scroll-smooth"
-        >
-          <div className="flex gap-5 pb-2">
-            {users.map((u, i) => (
-              <TopUserCard key={u.id} user={u} rank={i + 1} />
-            ))}
+          <div
+            ref={ref}
+            className="overflow-x-auto scrollbar-hide scroll-smooth"
+          >
+            <div className="flex gap-4 pb-1">
+              {users.map((u, i) => (
+                <TopUserCard key={u.id} user={u} rank={i + 1} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -77,12 +82,13 @@ function TopUsersRow() {
   )
 }
 
-// Top 3 get a colored medal in the rank badge; the rest get the number.
+// Solid, flat rank badge — Linear's chip aesthetic instead of glossy
+// emoji medals. Top 3 get podium colors; the rest get a neutral pill.
 function rankBadge(rank) {
-  if (rank === 1) return { emoji: '🥇', bg: 'bg-yellow-400' }
-  if (rank === 2) return { emoji: '🥈', bg: 'bg-neutral-300' }
-  if (rank === 3) return { emoji: '🥉', bg: 'bg-amber-600' }
-  return null
+  if (rank === 1) return { bg: 'bg-amber-400',  text: 'text-black' }   // gold
+  if (rank === 2) return { bg: 'bg-zinc-300',   text: 'text-black' }   // silver
+  if (rank === 3) return { bg: 'bg-amber-700',  text: 'text-white' }   // bronze
+  return            { bg: 'bg-white/10',        text: 'text-white/80' }
 }
 
 function TopUserCard({ user, rank }) {
@@ -93,17 +99,16 @@ function TopUserCard({ user, rank }) {
   return (
     <Link
       to={`/user/${user.id}`}
-      className="group block w-32 sm:w-36 shrink-0 text-center"
+      className="group block w-24 sm:w-28 shrink-0 text-center"
     >
-      {/* Portrait with rank badge floating top-left */}
-      <div className="relative mb-3">
+      {/* Portrait — rectangular, smaller. Rank badge floats top-left. */}
+      <div className="relative mb-2">
         <div className="
-          aspect-square rounded-full overflow-hidden
-          bg-neutral-200 dark:bg-neutral-800
-          ring-1 ring-black/5 dark:ring-white/5
+          aspect-square rounded-md overflow-hidden
+          bg-white/[0.04]
+          ring-1 ring-white/10
           transition
-          group-hover:ring-2 group-hover:ring-brand
-          group-hover:shadow-xl group-hover:shadow-brand/30
+          group-hover:ring-brand
         ">
           {user.avatar_url ? (
             <img
@@ -115,36 +120,28 @@ function TopUserCard({ user, rank }) {
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-5xl font-display text-brand bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-800">
+            <div className="w-full h-full flex items-center justify-center text-4xl font-display text-brand bg-gradient-to-br from-neutral-700 to-neutral-900">
               {initial}
             </div>
           )}
         </div>
 
-        {/* Rank badge */}
-        {badge ? (
-          <span className={`
-            absolute -top-1 -left-1 w-9 h-9 rounded-full flex items-center justify-center text-base
-            ${badge.bg} text-black shadow-lg ring-2 ring-white dark:ring-neutral-950
-          `}>
-            {badge.emoji}
-          </span>
-        ) : (
-          <span className="
-            absolute -top-1 -left-1 w-7 h-7 rounded-full flex items-center justify-center
-            bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-white/80
-            ring-2 ring-white dark:ring-neutral-950
-            text-xs font-bold
-          ">
-            {rank}
-          </span>
-        )}
+        {/* Rank badge — solid flat pill with the rank number, no emoji */}
+        <span className={`
+          absolute -top-1.5 -left-1.5 min-w-[20px] h-5 px-1.5
+          rounded-md flex items-center justify-center
+          text-[11px] font-semibold leading-none
+          ring-2 ring-surface-1
+          ${badge.bg} ${badge.text}
+        `}>
+          {rank}
+        </span>
       </div>
 
-      <div className="text-sm font-semibold leading-tight line-clamp-2 group-hover:text-brand transition-colors">
+      <div className="text-[12px] font-semibold leading-tight line-clamp-2 text-white/85 group-hover:text-white transition-colors">
         {name}
       </div>
-      <div className="text-[11px] text-brand font-medium mt-0.5">
+      <div className="text-[10px] text-brand font-medium mt-0.5">
         ♥ {user.likeCount} {user.likeCount === 1 ? 'like' : 'likes'}
       </div>
     </Link>

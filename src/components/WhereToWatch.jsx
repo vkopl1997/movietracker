@@ -106,54 +106,80 @@ function WhereToWatch({ mediaType, id, title }) {
 
   const regionData = providers[country]
 
+  // Group categories into two columns to match Linear's Status/Personal
+  // pattern. Left = ways to watch as part of a subscription / free; Right =
+  // transactional (rent / buy). Stream and Buy end up at the top of each
+  // column, sitting next to each other as requested.
+  const leftHasAny  = regionData && (regionData.flatrate?.length || regionData.free?.length || regionData.ads?.length)
+  const rightHasAny = regionData && (regionData.rent?.length || regionData.buy?.length)
+
   return (
-    <section className="mb-12">
-      <div className="flex items-baseline justify-between flex-wrap gap-3 mb-4">
-        <h2 className="text-xl font-bold">Where to watch</h2>
+    <section className="mb-12 w-full max-w-2xl">
+      <div className="
+        rounded-lg bg-surface-1 border border-white/[0.08]
+        shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+        overflow-hidden
+      ">
 
-        <CountryPicker
-          value={country}
-          onChange={setCountry}
-          withData={countriesWithData}
-        />
-      </div>
-
-      {!regionData && (
-        <div className="p-6 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-sm text-neutral-600 dark:text-white/70">
-          Not available to stream in <strong>{countryName(country)}</strong>.
-          Try switching regions above, or check <a
-            href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer"
-            className="text-brand hover:underline"
-          >JustWatch</a>.
+        {/* ── Section: header (title + country picker) ── */}
+        <div className="px-5 sm:px-6 py-4 flex items-center justify-between gap-3 flex-wrap border-b border-white/[0.06]">
+          <h2 className="text-[15px] font-semibold tracking-tight text-white">
+            Where to watch
+          </h2>
+          <CountryPicker
+            value={country}
+            onChange={setCountry}
+            withData={countriesWithData}
+          />
         </div>
-      )}
 
-      {regionData && (
-        <div className="space-y-5">
-          <ProviderRow label="Stream"   providers={regionData.flatrate} title={title} fallbackLink={regionData.link} />
-          <ProviderRow label="Rent"     providers={regionData.rent}     title={title} fallbackLink={regionData.link} />
-          <ProviderRow label="Buy"      providers={regionData.buy}      title={title} fallbackLink={regionData.link} />
-          <ProviderRow label="Free"     providers={regionData.free}     title={title} fallbackLink={regionData.link} />
-          <ProviderRow label="With ads" providers={regionData.ads}      title={title} fallbackLink={regionData.link} />
+        {/* ── Section: body — empty state OR 2-column provider grid ── */}
+        {!regionData && (
+          <div className="px-5 sm:px-6 py-5 text-[13px] text-white/65 border-b border-white/[0.06]">
+            Not available to stream in <strong className="text-white/85">{countryName(country)}</strong>.
+            Try switching regions above, or check <a
+              href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer"
+              className="text-brand hover:underline"
+            >JustWatch</a>.
+          </div>
+        )}
 
-          {regionData.link && (
+        {regionData && (leftHasAny || rightHasAny) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-white/[0.06] border-b border-white/[0.06]">
+            {/* Left column — subscription / free */}
+            <div className="p-4 sm:p-5 space-y-4">
+              <ProviderRow label="Stream"   providers={regionData.flatrate} title={title} fallbackLink={regionData.link} />
+              <ProviderRow label="Free"     providers={regionData.free}     title={title} fallbackLink={regionData.link} />
+              <ProviderRow label="With ads" providers={regionData.ads}      title={title} fallbackLink={regionData.link} />
+            </div>
+
+            {/* Right column — transactional */}
+            <div className="p-4 sm:p-5 space-y-4 border-t sm:border-t-0 border-white/[0.06]">
+              <ProviderRow label="Buy"  providers={regionData.buy}  title={title} fallbackLink={regionData.link} />
+              <ProviderRow label="Rent" providers={regionData.rent} title={title} fallbackLink={regionData.link} />
+            </div>
+          </div>
+        )}
+
+        {/* ── Section: footer (JustWatch link + attribution) ── */}
+        <div className="px-5 sm:px-6 py-3.5 flex items-center justify-between gap-3 flex-wrap">
+          {regionData?.link ? (
             <a
               href={regionData.link}
               target="_blank" rel="noopener noreferrer"
-              className="inline-block text-sm text-neutral-500 dark:text-white/50 hover:text-brand transition"
+              className="text-[13px] text-white/55 hover:text-white transition"
             >
               See full details on JustWatch ↗
             </a>
-          )}
+          ) : <span />}
+          <p className="text-[11px] text-white/35">
+            via <a
+              href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer"
+              className="hover:text-white/60 transition"
+            >JustWatch</a>
+          </p>
         </div>
-      )}
-
-      <p className="text-[11px] text-neutral-400 dark:text-white/40 mt-4">
-        Streaming data via <a
-          href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer"
-          className="hover:underline"
-        >JustWatch</a>.
-      </p>
+      </div>
     </section>
   )
 }
@@ -165,10 +191,10 @@ function ProviderRow({ label, providers, title, fallbackLink }) {
 
   return (
     <div>
-      <div className="text-xs font-semibold tracking-wider uppercase text-neutral-500 dark:text-white/50 mb-2">
+      <div className="text-[10px] font-medium tracking-[0.15em] uppercase text-white/40 mb-2">
         {label}
       </div>
-      <div className="flex flex-wrap gap-2.5">
+      <div className="flex flex-wrap gap-2">
         {sorted.map((p) => (
           <a
             key={p.provider_id}
@@ -177,10 +203,9 @@ function ProviderRow({ label, providers, title, fallbackLink }) {
             rel="noopener noreferrer"
             title={`Open "${title}" on ${p.provider_name}`}
             className="
-              block w-12 h-12 rounded-lg overflow-hidden shrink-0
-              ring-1 ring-black/10 dark:ring-white/10
+              block w-10 h-10 rounded-md overflow-hidden shrink-0
+              ring-1 ring-white/10
               transition hover:ring-brand hover:-translate-y-0.5
-              hover:shadow-lg hover:shadow-brand/20
               focus:outline-none focus:ring-2 focus:ring-brand
             "
           >

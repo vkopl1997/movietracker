@@ -10,13 +10,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../lib/AuthContext'
-import { useTheme } from '../lib/ThemeContext'
 import { searchMulti } from '../lib/tmdb'
 import Logo from './Logo'
 
 function MobileMenu({ open, onClose }) {
   const { user, signInWithGoogle, signOut } = useAuth()
-  const { theme, toggleTheme } = useTheme()
 
   // The drawer holds its OWN search state — independent of the URL.
   // This way typing here doesn't trigger BrowsePage to refetch in the background.
@@ -231,23 +229,8 @@ function MobileMenu({ open, onClose }) {
                   )}
                 </nav>
 
-                {/* Footer: theme + auth */}
+                {/* Footer: auth */}
                 <div className="px-4 py-4 border-t border-black/5 dark:border-white/10 space-y-3">
-                  <button
-                    onClick={toggleTheme}
-                    className="
-                      w-full flex items-center justify-between px-4 py-3 rounded-xl text-base
-                      bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-                      border border-black/10 dark:border-white/10
-                      transition
-                    "
-                  >
-                    <span className="text-neutral-700 dark:text-white/80">
-                      {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                    </span>
-                    <span className="text-xl">{theme === 'dark' ? '☀️' : '🌙'}</span>
-                  </button>
-
                   {user ? (
                     <button
                       onClick={() => { onClose(); signOut() }}

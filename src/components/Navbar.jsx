@@ -8,7 +8,6 @@
 import { startTransition, useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
-import { useTheme } from '../lib/ThemeContext'
 import UserMenu from './UserMenu'
 import Logo from './Logo'
 import NotificationBell from './NotificationBell'
@@ -25,7 +24,6 @@ const navLinkClass = ({ isActive }) =>
 
 function Navbar() {
   const { user, signInWithGoogle } = useAuth()
-  const { theme, toggleTheme } = useTheme()
 
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -112,16 +110,6 @@ function Navbar() {
 
             {/* Vertical divider — Linear's signature touch */}
             {!user && <span className="hidden sm:block h-5 w-px bg-white/10" aria-hidden />}
-
-            {!user && (
-              <button
-                onClick={toggleTheme}
-                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-                className="hidden sm:flex w-8 h-8 rounded-md items-center justify-center text-white/60 hover:text-white hover:bg-white/5 transition text-sm"
-              >
-                {theme === 'dark' ? '☀' : '☾'}
-              </button>
-            )}
 
             {user ? (
               <UserMenu />

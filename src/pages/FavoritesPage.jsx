@@ -108,11 +108,13 @@ function FavoritesPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-      {/* ── Profile header — mirrors UserProfilePage layout ────────── */}
+      {/* ── Profile header — rectangular avatar + framed bio card ── */}
       <section className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-10">
+        {/* Avatar — smaller + rounded-md, flatter Linear ring */}
         <div className="
-          shrink-0 w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden
-          ring-1 ring-black/10 dark:ring-white/10 shadow-xl
+          shrink-0 w-28 h-28 sm:w-32 sm:h-32 rounded-md overflow-hidden
+          ring-1 ring-white/10
+          shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)]
         ">
           {avatarUrl ? (
             <img
@@ -123,147 +125,176 @@ function FavoritesPage() {
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-6xl font-display text-brand bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-800">
+            <div className="w-full h-full flex items-center justify-center text-5xl font-display text-brand bg-gradient-to-br from-neutral-700 to-neutral-900">
               {initial}
             </div>
           )}
         </div>
 
-        <div className="flex-1 min-w-0 text-center sm:text-left">
-          <h1 className="font-display text-4xl sm:text-5xl tracking-[0.02em] leading-tight mb-2">
-            {displayName}
-          </h1>
-          {joinedAt && (
-            <p className="text-sm text-neutral-500 dark:text-white/50 mb-4">
-              Joined {joinedLabel(joinedAt)}
-            </p>
-          )}
+        <div className="flex-1 min-w-0 w-full">
+          <div className="
+            w-full rounded-lg bg-surface-1 border border-white/[0.08]
+            shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+            overflow-hidden
+          ">
+            {/* Section: header (name + joined) */}
+            <div className="px-5 sm:px-6 pt-4 pb-4 border-b border-white/[0.06]">
+              <h1 className="font-display text-2xl sm:text-3xl tracking-[-0.02em] leading-[1.1] text-white">
+                {displayName}
+              </h1>
+              {joinedAt && (
+                <p className="mt-1.5 text-[12px] text-white/45">
+                  Joined {joinedLabel(joinedAt)}
+                </p>
+              )}
+            </div>
 
-          {/* Likes — disabled (self) but still shows the count */}
-          <div className="mb-4 flex justify-center sm:justify-start">
-            <LikeButton
-              targetUserId={user?.id}
-              likeCount={likeCount}
-              likedByMe={false}
-              size="lg"
-            />
-          </div>
+            {/* Section: like count (disabled for self) */}
+            <div className="px-5 sm:px-6 py-3 border-b border-white/[0.06]">
+              <LikeButton
+                targetUserId={user?.id}
+                likeCount={likeCount}
+                likedByMe={false}
+                size="lg"
+              />
+            </div>
 
-          {/* Stat pills */}
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <StatPill icon="♥" label="favorites" value={favorites.length} color="text-brand" />
-            <StatPill icon="✓" label="watched"   value={watched.length}   color="text-emerald-500" />
-            <StatPill icon="🔖" label="watchlist" value={watchlist.length} color="text-sky-500" />
+            {/* Section: stats */}
+            <div className="px-5 sm:px-6 py-3 flex flex-wrap items-center gap-2">
+              <StatPill icon="♥"  label="favorites" value={favorites.length} color="text-pink-400"    />
+              <StatPill icon="✓"  label="watched"   value={watched.length}   color="text-emerald-400" />
+              <StatPill icon="🔖" label="watchlist" value={watchlist.length} color="text-sky-400"     />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Status tabs */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-        {STATUS_TABS.map((t) => {
-          const active = tab === t.value
-          return (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition flex items-center gap-2 ${
-                active
-                  ? `${t.color} text-black`
-                  : 'bg-black/5 hover:bg-black/10 text-neutral-700 border border-black/10 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white/70 dark:border-white/10'
-              }`}
-            >
-              {t.icon && <span>{t.icon}</span>}
-              {t.label}
-              <span className="opacity-60">({counts[t.value]})</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Secondary filter row: type + sort */}
-      <div className="flex flex-wrap items-center gap-3 mb-8">
-        {/* Media type filter */}
-        <div className="flex rounded-full bg-black/5 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
-          {['all', 'movie', 'tv'].map((t) => (
-            <button
-              key={t}
-              onClick={() => setType(t)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition ${
-                type === t
-                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow'
-                  : 'text-neutral-500 dark:text-white/60'
-              }`}
-            >
-              {t === 'all' ? 'All' : t === 'movie' ? 'Movies' : 'TV'}
-            </button>
-          ))}
-        </div>
-
-        {/* Sort dropdown */}
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="
-            px-3 py-1.5 rounded-full text-sm
-            bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10
-            border border-black/10 dark:border-white/10
-            text-neutral-700 dark:text-white/70
-            focus:outline-none focus:border-brand transition
-          "
-        >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>Sort: {o.label}</option>
-          ))}
-        </select>
-
-        <div className="ml-auto text-xs text-neutral-500 dark:text-white/40">
-          {sorted.length} {sorted.length === 1 ? 'item' : 'items'}
-        </div>
-      </div>
-
-      {loading && <SkeletonGrid count={8} />}
-
-      {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm">
-          ⚠️ {error}
-        </div>
-      )}
-
-      {!loading && !error && sorted.length === 0 && (
-        <div className="p-12 rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-white/5 text-center">
-          <div className="text-5xl mb-4">
-            {tab === 'favorites' ? '💔' : tab === 'watched' ? '👀' : tab === 'watchlist' ? '🗒️' : '🎬'}
+      {/* ── Library — single framed card with all filters inside ── */}
+      <section className="w-full">
+        <div className="
+          rounded-lg bg-surface-1 border border-white/[0.08]
+          shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+          overflow-hidden
+        ">
+          {/* Header */}
+          <div className="px-5 sm:px-6 py-4 flex items-baseline justify-between gap-3 flex-wrap border-b border-white/[0.06]">
+            <h2 className="text-[15px] font-semibold tracking-tight text-white">My Library</h2>
+            <span className="text-[12px] text-white/45">
+              {sorted.length} {sorted.length === 1 ? 'item' : 'items'}
+            </span>
           </div>
-          <h2 className="text-lg font-semibold mb-2">
-            {emptyMessage(tab, type)}
-          </h2>
-          <p className="text-neutral-500 dark:text-white/60 text-sm mb-6">
-            Browse trending and use the heart, eye, or bookmark icons on any title.
-          </p>
-          <Link
-            to="/"
-            className="inline-block px-5 py-2 rounded-full bg-brand hover:bg-brand-light text-black font-semibold text-sm transition"
-          >
-            Browse
-          </Link>
-        </div>
-      )}
 
-      {sorted.length > 0 && (
-        <motion.div
-          key={`${tab}-${type}-${sort}`}
-          variants={gridContainer}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
-        >
-          {sorted.map((item) => (
-            <motion.div key={`${item.mediaType}-${item.id}`} variants={cardVariant}>
-              <MediaCard {...item} />
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
+          {/* Filters — Linear segmented controls */}
+          <div className="px-5 sm:px-6 py-3.5 flex flex-wrap items-center gap-3 border-b border-white/[0.06]">
+            {/* Status tabs */}
+            <div className="inline-flex items-center rounded-md bg-white/[0.04] border border-white/[0.06] p-0.5">
+              {STATUS_TABS.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setTab(t.value)}
+                  className={`px-2.5 py-1 rounded-[5px] text-[12px] font-medium transition-colors ${
+                    tab === t.value
+                      ? 'bg-white/[0.08] text-white'
+                      : 'text-white/55 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                  <span className={`ml-1.5 text-[11px] ${tab === t.value ? 'text-white/55' : 'text-white/35'}`}>
+                    {counts[t.value]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Type filter */}
+            <div className="inline-flex items-center rounded-md bg-white/[0.04] border border-white/[0.06] p-0.5">
+              {[
+                { v: 'all',   label: 'All' },
+                { v: 'movie', label: 'Movies' },
+                { v: 'tv',    label: 'TV' },
+              ].map((t) => (
+                <button
+                  key={t.v}
+                  onClick={() => setType(t.v)}
+                  className={`px-2.5 py-1 rounded-[5px] text-[12px] font-medium transition-colors ${
+                    type === t.v
+                      ? 'bg-white/[0.08] text-white'
+                      : 'text-white/55 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Sort dropdown */}
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="
+                px-2.5 py-1 rounded-md text-[12px] font-medium
+                bg-white/[0.04] hover:bg-white/[0.06]
+                border border-white/[0.06]
+                text-white/70 hover:text-white
+                focus:outline-none focus:border-white/20 transition
+              "
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value} className="bg-surface-1 text-white">
+                  Sort: {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Body */}
+          <div className="p-5 sm:p-6">
+            {loading && <SkeletonGrid count={8} />}
+
+            {error && (
+              <div className="p-4 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 text-[13px]">
+                ⚠️ {error}
+              </div>
+            )}
+
+            {!loading && !error && sorted.length === 0 && (
+              <div className="py-10 text-center">
+                <div className="text-4xl mb-3 opacity-60">
+                  {tab === 'favorites' ? '💔' : tab === 'watched' ? '👀' : tab === 'watchlist' ? '🗒️' : '🎬'}
+                </div>
+                <h3 className="text-[14px] font-semibold text-white/85 mb-2">
+                  {emptyMessage(tab, type)}
+                </h3>
+                <p className="text-[12px] text-white/55 mb-5 max-w-sm mx-auto">
+                  Browse trending and use the heart, eye, or bookmark icons on any title.
+                </p>
+                <Link
+                  to="/"
+                  className="inline-block px-3.5 py-2 rounded-md bg-white hover:bg-white/90 text-black font-medium text-[13px] transition"
+                >
+                  Browse
+                </Link>
+              </div>
+            )}
+
+            {!loading && !error && sorted.length > 0 && (
+              <motion.div
+                key={`${tab}-${type}-${sort}`}
+                variants={gridContainer}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
+              >
+                {sorted.map((item) => (
+                  <motion.div key={`${item.mediaType}-${item.id}`} variants={cardVariant}>
+                    <MediaCard {...item} />
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </section>
     </main>
   )
 }
@@ -276,18 +307,19 @@ function emptyMessage(tab, type) {
   return `Nothing in your library yet`
 }
 
-// Same StatPill used on UserProfilePage. Inlined here to keep pages independent.
+// Same StatPill used on UserProfilePage. Inlined here to keep pages
+// independent — Linear-style flat chip with coloured icon + count + label.
 function StatPill({ icon, label, value, color }) {
   return (
     <span className="
-      inline-flex items-center gap-1.5 px-3 py-1 rounded-full
-      bg-black/5 dark:bg-white/5
-      border border-black/10 dark:border-white/10
-      text-sm
+      inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md
+      bg-white/[0.04]
+      border border-white/[0.06]
+      text-[12px]
     ">
       <span className={color}>{icon}</span>
-      <strong className="font-semibold">{value}</strong>
-      <span className="text-neutral-500 dark:text-white/50 text-xs">{label}</span>
+      <strong className="font-semibold text-white">{value}</strong>
+      <span className="text-white/45 text-[11px]">{label}</span>
     </span>
   )
 }

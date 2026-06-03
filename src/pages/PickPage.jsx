@@ -2323,18 +2323,17 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
     >
       {/* ─── LEFT SIDEBAR (col-span-4): heading + meta + actions ─────── */}
       <aside className="md:col-span-4 md:sticky md:top-4 self-start space-y-3">
-        <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.3em] text-brand uppercase flex items-center gap-2">
-          <span className="h-px w-6 bg-brand/40" />
-          AI PICK
+        <div className="text-[10px] sm:text-[11px] font-medium tracking-[0.18em] text-brand uppercase">
+          AI Pick
         </div>
-        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[0.02em] leading-tight">
+        <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-[-0.03em] leading-[1.05] text-white">
           What should I watch?
         </h1>
-        <p className="text-xs sm:text-sm text-neutral-500 dark:text-white/60">
+        <p className="text-[13px] text-white/55">
           Start with a movie you love — or skip and pick by theme.
         </p>
 
-        <p className="text-sm text-neutral-500 dark:text-white/70 pt-1 italic">
+        <p className="text-[13px] text-white/70 pt-1 italic">
           <ResultsHeader />
         </p>
 
@@ -2342,7 +2341,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           <div className="space-y-1.5 pt-1">
             {topScore != null && <ScoreBar score={topScore} />}
             {(tasteProfile || topGenreLabels.length > 0) && (
-              <p className="text-[11px] text-neutral-400 dark:text-white/40">
+              <p className="text-[11px] text-white/40">
                 {tasteProfile && <>Tuned to your taste · {tasteProfile.totalFavs} favorites</>}
                 {topGenreLabels.length > 0 && (
                   <> · weights {topGenreLabels.join(', ')}</>
@@ -2360,20 +2359,25 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           />
         </div>
 
-        <div className="flex flex-col gap-2.5 pt-2">
+        <div className="flex flex-col gap-2 pt-2">
+          {/* Linear-style primary CTA: white pill, black text */}
           <motion.button onClick={onPickAgain} disabled={loading}
-            whileHover={loading ? {} : { scale: 1.02 }} whileTap={loading ? {} : { scale: 0.97 }}
-            className="w-full py-3 rounded-2xl bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent hover:from-brand/15 hover:via-brand/8 hover:to-brand/5 text-brand font-semibold text-sm border border-white/10 hover:border-brand/30 shadow-md shadow-black/20 hover:shadow-brand/15 transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
+            whileTap={loading ? {} : { scale: 0.98 }}
+            className="w-full py-2.5 rounded-md bg-white hover:bg-white/90 text-black font-medium text-[13px] transition disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-1.5"
           >
             {loading ? (<><Spinner /> Picking…</>) : 'Pick again'}
           </motion.button>
-          <button onClick={onReset} disabled={loading} className="text-base text-neutral-500 dark:text-white/45 hover:text-brand underline underline-offset-4 decoration-white/15 hover:decoration-brand transition disabled:opacity-50 text-center">
+          <button
+            onClick={onReset}
+            disabled={loading}
+            className="text-[13px] text-white/55 hover:text-white transition disabled:opacity-50 text-center"
+          >
             or start over with a different mood
           </button>
         </div>
 
         {picks?.length > 0 && seenCount > 0 && (
-          <p className="text-[10px] text-neutral-400 dark:text-white/30 pt-1">
+          <p className="text-[10px] text-white/30 pt-1">
             {seenCount} {seenCount === 1 ? 'title' : 'titles'} excluded from this session.
           </p>
         )}
@@ -2425,7 +2429,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                   className="mt-2 flex flex-wrap justify-center gap-1 px-2"
                 >
                   {tagsFor(picks[0], moods, occasion).map((tag) => (
-                    <span key={tag} className="text-[10px] sm:text-[11px] font-medium text-brand bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-full leading-none whitespace-nowrap">
+                    <span key={tag} className="text-[10px] sm:text-[11px] font-medium text-white/70 bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-md leading-none whitespace-nowrap">
                       #{tag}
                     </span>
                   ))}
@@ -2464,7 +2468,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                       className="mt-1.5 flex flex-wrap justify-center gap-1 px-1"
                     >
                       {tagsFor(pick, moods, occasion).slice(0, 3).map((tag) => (
-                        <span key={tag} className="text-[9px] font-medium text-brand bg-brand/10 border border-brand/20 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                        <span key={tag} className="text-[9px] font-medium text-white/70 bg-white/[0.04] border border-white/[0.08] px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
                           #{tag}
                         </span>
                       ))}
@@ -2526,7 +2530,7 @@ function ResultsMediaTypeSwitcher({ mediaType, onChange, disabled }) {
     { value: 'tv',    label: 'TV' },
   ]
   return (
-    <div className="flex justify-center gap-1.5 mb-2">
+    <div className="inline-flex items-center rounded-md bg-white/[0.04] border border-white/[0.06] p-0.5 mb-2">
       {options.map((opt) => {
         const active = mediaType === opt.value
         return (
@@ -2534,10 +2538,10 @@ function ResultsMediaTypeSwitcher({ mediaType, onChange, disabled }) {
             key={opt.value}
             onClick={() => onChange?.(opt.value)}
             disabled={disabled}
-            className={`px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide transition disabled:opacity-50 disabled:cursor-wait ${
+            className={`px-2.5 py-1 rounded-[5px] text-[12px] font-medium transition-colors disabled:opacity-50 disabled:cursor-wait ${
               active
-                ? 'bg-gradient-to-br from-brand/20 to-brand/10 text-brand border border-brand/40'
-                : 'bg-white/[0.04] hover:bg-white/10 border border-white/10 text-neutral-500 dark:text-white/50 hover:text-white/80'
+                ? 'bg-white/[0.08] text-white'
+                : 'text-white/55 hover:text-white'
             }`}
           >
             {opt.label}

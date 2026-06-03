@@ -159,8 +159,8 @@ function UserProfilePage() {
 
         <div className="flex-1 min-w-0 w-full">
           <div className="
-            w-full rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
-            shadow-2xl shadow-black/30
+            w-full rounded-lg bg-surface-1 border border-white/[0.08]
+            shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
             overflow-hidden
           ">
             {/* ── Section: header (name + joined) ── */}
@@ -203,8 +203,8 @@ function UserProfilePage() {
       {sharedItems.length > 0 && (
         <section className="mb-12 w-full">
           <div className="
-            rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
-            shadow-2xl shadow-black/30
+            rounded-lg bg-surface-1 border border-white/[0.08]
+            shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
             overflow-hidden
           ">
             {/* Header */}
@@ -252,8 +252,8 @@ function UserProfilePage() {
       {/* ── Library grid — framed card with all filters inside ── */}
       <section className="w-full">
         <div className="
-          rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
-          shadow-2xl shadow-black/30
+          rounded-lg bg-surface-1 border border-white/[0.08]
+          shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
           overflow-hidden
         ">
           {/* Header */}

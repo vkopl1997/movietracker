@@ -27,38 +27,41 @@ function PopularPeopleRow() {
   if (people.length === 0) return null
 
   return (
-    <section className="mb-16">
-      {/* Section header — same accent style as the Upcoming row */}
-      <div className="mb-5">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
-          <span className="inline-block w-1 h-7 bg-brand rounded-sm" />
-          Popular actors
-        </h2>
-        <p className="text-sm text-neutral-500 dark:text-white/50 mt-1 ml-4">
-          The most famous people on TMDb right now
-        </p>
-      </div>
+    <section className="mb-16 w-full">
+      <div className="
+        rounded-lg bg-surface-1 border border-white/[0.08]
+        shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
+        overflow-hidden
+      ">
+        {/* ── Section: header (title + subtitle) ── */}
+        <div className="px-5 sm:px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="text-[15px] font-semibold tracking-tight text-white">
+            Popular actors
+          </h2>
+          <p className="mt-1.5 text-[12px] text-white/45">
+            The most famous people on TMDb right now
+          </p>
+        </div>
 
-      {/* Scroller with arrows. topPercent='40%' lands the arrows at the
-          vertical midline of the circular portraits (the name text below
-          adds height that would otherwise push them too low). */}
-      <div className="relative">
-        <ScrollArrows
-          canLeft={canLeft}
-          canRight={canRight}
-          onLeft={scrollLeft}
-          onRight={scrollRight}
-          topPercent="40%"
-        />
+        {/* ── Section: body (horizontal scroll of portrait cards) ── */}
+        <div className="relative p-4 sm:p-5">
+          <ScrollArrows
+            canLeft={canLeft}
+            canRight={canRight}
+            onLeft={scrollLeft}
+            onRight={scrollRight}
+            topPercent="40%"
+          />
 
-        <div
-          ref={ref}
-          className="-mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto scrollbar-hide scroll-smooth"
-        >
-          <div className="flex gap-5 pb-2">
-            {people.map((person) => (
-              <PopularPersonCard key={person.id} person={person} />
-            ))}
+          <div
+            ref={ref}
+            className="overflow-x-auto scrollbar-hide scroll-smooth"
+          >
+            <div className="flex gap-5 pb-1">
+              {people.map((person) => (
+                <PopularPersonCard key={person.id} person={person} />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -76,14 +79,14 @@ function PopularPersonCard({ person }) {
       to={`/person/${person.id}`}
       className="group block w-32 sm:w-36 shrink-0 text-center"
     >
-      {/* Circular portrait */}
+      {/* Rectangular portrait — same size, just rounded corners instead
+          of a full circle to match the Linear table design language. */}
       <div className="
-        relative aspect-square rounded-full overflow-hidden mb-3
-        bg-neutral-200 dark:bg-neutral-800
-        ring-1 ring-black/5 dark:ring-white/5
+        relative aspect-square rounded-md overflow-hidden mb-2.5
+        bg-white/[0.04]
+        ring-1 ring-white/10
         transition
-        group-hover:ring-2 group-hover:ring-brand
-        group-hover:shadow-xl group-hover:shadow-brand/30
+        group-hover:ring-brand
       ">
         {showImage ? (
           <img
@@ -94,7 +97,7 @@ function PopularPersonCard({ person }) {
             className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-300 to-neutral-200 dark:from-neutral-700 dark:to-neutral-900">
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-700 to-neutral-900">
             <span className="font-display text-6xl text-brand drop-shadow leading-none">
               {initial}
             </span>
@@ -103,13 +106,13 @@ function PopularPersonCard({ person }) {
       </div>
 
       {/* Name */}
-      <div className="text-sm font-semibold leading-tight line-clamp-2 group-hover:text-brand transition-colors">
+      <div className="text-sm font-semibold leading-tight line-clamp-2 text-white/85 group-hover:text-white transition-colors">
         {person.name}
       </div>
 
       {/* "Known for" — only show when it's NOT acting (acting is implied) */}
       {person.knownFor && person.knownFor !== 'Acting' && (
-        <div className="text-[11px] text-neutral-500 dark:text-white/50 mt-0.5 line-clamp-1">
+        <div className="text-[11px] text-white/45 mt-0.5 line-clamp-1">
           {person.knownFor}
         </div>
       )}

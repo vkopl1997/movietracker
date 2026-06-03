@@ -2327,12 +2327,12 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-12px_rgba(0,0,0,0.5)]
         overflow-hidden
       ">
-        <div className="p-2 sm:p-3 grid grid-cols-1 md:grid-cols-12 gap-3 lg:gap-4 items-start">
+        <div className="p-2 sm:p-3 grid grid-cols-1 md:grid-cols-10 gap-3 lg:gap-4 items-start">
 
-      {/* ─── LEFT SIDEBAR (col-span-6 = 50% width): INNER framed table.
-          self-start so the panel hugs its own content height instead
-          of stretching to match the right column. */}
-      <aside className="md:col-span-6 md:self-start">
+      {/* ─── LEFT SIDEBAR (col-span-3 of 10 = 30% width): INNER framed
+          table. self-start so the panel hugs its own content height
+          instead of stretching to match the right column. */}
+      <aside className="md:col-span-3 md:self-start">
         <div className="
           w-full
           rounded-lg bg-surface-2 border border-white/[0.06]
@@ -2409,8 +2409,8 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         </div>
       </aside>
 
-      {/* ─── RIGHT (col-span-6 = 50%): INNER framed table holding cards ── */}
-      <div className="md:col-span-6">
+      {/* ─── RIGHT (col-span-7 of 10 = 70%): INNER framed table holding cards ── */}
+      <div className="md:col-span-7">
       <div className="
         rounded-lg bg-surface-2 border border-white/[0.06]
         shadow-[inset_0_0_0_1px_rgba(255,255,255,0.01)]

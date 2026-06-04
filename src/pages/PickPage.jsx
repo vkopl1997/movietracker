@@ -2570,7 +2570,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-                className="md:col-span-7 w-full md:max-w-[calc((100vh-360px)*0.667)] md:mx-auto relative group will-change-transform"
+                className="md:col-span-8 w-full md:max-w-[calc((100vh-360px)*0.667)] md:mx-auto relative group will-change-transform"
               >
                 <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-brand text-black text-[10px] font-bold tracking-wider uppercase shadow-lg">
                   ★ Top pick
@@ -2603,10 +2603,11 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                 </motion.p>
               </motion.div>
 
-              {/* ALTERNATIVES — col-span-5 stacked. Bumped from
-                  col-span-4 so the 2nd + 3rd cards have meaningfully
-                  more horizontal space relative to the featured pick. */}
-              <div className="md:col-span-5 grid grid-cols-2 md:grid-cols-1 gap-1.5 lg:gap-2 self-start">
+              {/* ALTERNATIVES — col-span-4 stacked. Featured at col-span-8
+                  means alt-column is half the featured-column width, which
+                  is what makes 2 alts stacked equal featured's height with
+                  the same 2:3 aspect — visually balanced trio. */}
+              <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-1.5 lg:gap-2 self-start">
                 {picks.slice(1).map((pick, idx) => (
                   <motion.div
                     key={`alt-${round}-${pick.id}`}
@@ -2614,7 +2615,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.08 + idx * 0.06 }}
-                    className="w-full relative group will-change-transform"
+                    className="w-full md:max-w-[calc((100vh-360px)*0.32)] md:mx-auto relative group will-change-transform"
                   >
                     <button
                       onClick={() => onDismiss(pick)}

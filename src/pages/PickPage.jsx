@@ -748,30 +748,34 @@ function PickPage() {
   // Inline mediaType switcher in ResultsView calls this. The pool is
   // fetched ONCE per generate() and cached as `scoredPool`; switching
   // Movies / TV / Both is now a pure in-memory re-slice via
-  // deriveTopPicks() — no extra network calls, no clearing seenIds,
-  // no triggering generate(). Pick again is still the way to fetch
-  // fresh candidates.
+  // deriveTopPicks() — no extra network calls, no triggering
+  // generate(). Pick again is still the way to fetch fresh
+  // candidates.
+  //
+  // Flipping the filter ALWAYS re-anchors at the top of the new
+  // filter's ranked list. seenIds gets cleared so the highest-scoring
+  // movies / TV / mixed appear immediately, even if they were already
+  // shown in the previous filter view. This matches the mental model
+  // "show me the best of THIS type, from scratch."
   function changeMediaType(newType) {
     if (newType === mediaType) return
     setMediaType(newType)
     if (hasPicked && scoredPool.length > 0) {
-      // Re-derive top 3 from the cached pool under the new filter,
-      // skipping the IDs we've already shown this session.
-      const next = deriveTopPicks(scoredPool, newType, seenIds)
+      // Empty seen-set so the slice starts from the absolute top.
+      const fresh = new Set()
+      const next = deriveTopPicks(scoredPool, newType, fresh)
       setPicks(next)
-      // Recompute top score for the bar based on the picks we ended up
-      // surfacing under the new filter (not the all-time best in the pool).
       const newTop = next?.[0]
       if (newTop) {
         const cached = scoredPool.find((s) => s.id === newTop.id)
         if (cached?._score != null) setTopScore(Math.round(cached._score))
       }
-      // Remember what we just surfaced so Pick again walks past them.
-      setSeenIds((prev) => {
-        const np = new Set(prev)
-        for (const m of next) np.add(m.id)
-        return np
-      })
+      // Reset session memory to just the items we're now showing, so
+      // Pick again from here advances through the rest of the new
+      // filter's ranked list rather than relics of the old view.
+      const nextSeen = new Set()
+      for (const m of next) nextSeen.add(m.id)
+      setSeenIds(nextSeen)
     }
   }
 

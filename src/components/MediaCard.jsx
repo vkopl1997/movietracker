@@ -50,13 +50,21 @@ function MediaCard({ id, title, year, mediaType, posterUrl, rating }) {
             </div>
           )}
 
-          {/* Watched checkmark (top-right) — minimal status indicator,
-              replaces the "WATCHED" word pill across the top. */}
-          {watched && (
+          {/* Media type tag (top-right) — solid minimalistic so the user
+              can tell movies from TV at a glance in mixed lists like
+              the picker results. Watched takes precedence in the same
+              corner: when an item is watched we show the green check
+              instead, and the type info is still readable from the
+              title's meta line under the poster. */}
+          {watched ? (
             <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center" title="Watched">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-black">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
+            </div>
+          ) : (
+            <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 text-[10px] font-bold tracking-wider uppercase text-white">
+              {mediaType === 'tv' ? 'TV' : 'Movie'}
             </div>
           )}
 

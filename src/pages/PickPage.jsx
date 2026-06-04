@@ -12,6 +12,7 @@
 //   9. Pace slider             — slow burn ←→ fast-paced
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 // Always enforce at least this TMDb rating, even when the strict filter is
 // too restrictive and we have to widen other constraints.
@@ -2554,101 +2555,352 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           the outer 12-col. The narrower right column naturally shrinks
           each card so the trio fits in a typical laptop viewport
           without scrolling. */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 lg:gap-2 min-h-[280px] md:min-h-[420px]">
-        <AnimatePresence mode="wait">
-          {picks?.length === 0 ? (
-            <ExhaustedState key="exhausted" className="md:col-span-12" />
-          ) : picks?.length > 0 ? (
-            <>
-              {/* FEATURED (top pick) — col-span-8 of the right column.
-                  max-h cap in viewport units so the poster never
-                  pushes the alts below the fold. mx-auto centers what
-                  remains inside the column. */}
-              <motion.div
-                key={`featured-${round}-${picks[0].id}`}
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-                className="md:col-span-8 w-full md:max-w-[calc((100vh-360px)*0.667)] md:mx-auto relative group will-change-transform"
-              >
-                <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-brand text-black text-[10px] font-bold tracking-wider uppercase shadow-lg">
-                  ★ Top pick
-                </div>
-                <button
-                  onClick={() => onDismiss(picks[0])}
-                  title="Show me less like this"
-                  className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-base border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
-                >
-                  ×
-                </button>
-                <MediaCard {...picks[0]} />
-                <motion.div
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                  transition={{ delay: 0.18, duration: 0.22 }}
-                  className="mt-2 flex flex-wrap justify-center gap-1 px-2"
-                >
-                  {tagsFor(picks[0], moods, occasion).map((tag) => (
-                    <span key={tag} className="text-[10px] sm:text-[11px] font-medium text-white/70 bg-white/[0.04] border border-white/[0.08] px-2 py-0.5 rounded-md leading-none whitespace-nowrap">
-                      #{tag}
-                    </span>
-                  ))}
-                </motion.div>
-                <motion.p
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                  transition={{ delay: 0.26, duration: 0.24 }}
-                  className="mt-1.5 text-center text-[11px] sm:text-xs text-neutral-600 dark:text-white/70 leading-snug px-2 line-clamp-2"
-                >
-                  {reasonFor(picks[0], moods, occasionLabel)}
-                </motion.p>
-              </motion.div>
-
-              {/* ALTERNATIVES — col-span-4 stacked. Featured at col-span-8
-                  means alt-column is half the featured-column width, which
-                  is what makes 2 alts stacked equal featured's height with
-                  the same 2:3 aspect — visually balanced trio. */}
-              <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-1.5 lg:gap-2 self-start">
-                {picks.slice(1).map((pick, idx) => (
-                  <motion.div
-                    key={`alt-${round}-${pick.id}`}
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.08 + idx * 0.06 }}
-                    className="w-full md:max-w-[calc((100vh-360px)*0.32)] md:mx-auto relative group will-change-transform"
-                  >
-                    <button
-                      onClick={() => onDismiss(pick)}
-                      title="Show me less like this"
-                      className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-neutral-900/90 hover:bg-red-500 text-white text-xs border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
-                    >
-                      ×
-                    </button>
-                    <MediaCard {...pick} />
-                    <motion.div
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                      transition={{ delay: 0.24 + idx * 0.06, duration: 0.22 }}
-                      className="mt-1.5 flex flex-wrap justify-center gap-1 px-1"
-                    >
-                      {tagsFor(pick, moods, occasion).slice(0, 3).map((tag) => (
-                        <span key={tag} className="text-[9px] font-medium text-white/70 bg-white/[0.04] border border-white/[0.08] px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
-                          #{tag}
-                        </span>
-                      ))}
-                    </motion.div>
-                  </motion.div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </AnimatePresence>
-      </div>
+      {/* Layout-variant switcher chips — pick one then "Pick again" keeps
+          using your choice. Once you decide, ping me and I strip the
+          switcher + the non-winners. */}
+      <ResultsCardsSwitcher
+        picks={picks}
+        round={round}
+        moods={moods}
+        occasion={occasion}
+        occasionLabel={occasionLabel}
+        onDismiss={onDismiss}
+      />
       </div>{/* /right inner framed table */}
       </div>{/* /right column */}
 
         </div>{/* /outer grid */}
       </div>{/* /outer framed table */}
     </motion.section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ResultsCardsSwitcher
+//
+// Temporary harness: shows a small A/B/C/D variant switcher above the
+// cards so the user can flip between four layout proposals on the same
+// pick data. Whichever variant is selected becomes the active layout.
+// Persisted to sessionStorage so Pick again keeps the chosen variant.
+// Once the user decides, we strip the switcher + non-winners.
+//
+//   A — 3 equal cards in a row
+//   B — Featured big on top, 2 alts in a row below
+//   C — Featured (portrait) on the left, 2 landscape alts on the right
+//   D — Single-card carousel, arrows to flip through
+// ─────────────────────────────────────────────────────────────────────
+const LAYOUT_STORE_KEY = 'mt_picker_layout_v1'
+
+function ResultsCardsSwitcher({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
+  const [variant, setVariant] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(LAYOUT_STORE_KEY)
+      return ['A', 'B', 'C', 'D'].includes(saved) ? saved : 'A'
+    } catch { return 'A' }
+  })
+  useEffect(() => {
+    try { sessionStorage.setItem(LAYOUT_STORE_KEY, variant) } catch {}
+  }, [variant])
+
+  const variantProps = { picks, round, moods, occasion, occasionLabel, onDismiss }
+
+  return (
+    <div className="space-y-2">
+      {/* Switcher chips */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] tracking-[0.18em] uppercase text-white/40 font-medium mr-1">
+          Layout
+        </span>
+        {[
+          { id: 'A', label: 'A · Equal row' },
+          { id: 'B', label: 'B · Featured top' },
+          { id: 'C', label: 'C · Portrait + landscape' },
+          { id: 'D', label: 'D · Carousel' },
+        ].map((opt) => (
+          <button
+            key={opt.id}
+            onClick={() => setVariant(opt.id)}
+            className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
+              variant === opt.id
+                ? 'bg-white/[0.12] text-white'
+                : 'bg-white/[0.04] text-white/55 hover:bg-white/[0.08] hover:text-white'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Cards area */}
+      <div className="min-h-[280px] md:min-h-[380px]">
+        <AnimatePresence mode="wait">
+          {picks?.length === 0 ? (
+            <ExhaustedState key="exhausted" />
+          ) : picks?.length > 0 ? (
+            <motion.div
+              key={`variant-${variant}-${round}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22 }}
+            >
+              {variant === 'A' && <LayoutEqualRow {...variantProps} />}
+              {variant === 'B' && <LayoutFeaturedTop {...variantProps} />}
+              {variant === 'C' && <LayoutPortraitLandscape {...variantProps} />}
+              {variant === 'D' && <LayoutCarousel {...variantProps} />}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+}
+
+// ── Shared bits ─────────────────────────────────────────────────────
+function TopPickBadge({ size = 'md' }) {
+  const small = size === 'sm'
+  return (
+    <div className={`absolute ${small ? 'top-2 left-2 px-1.5 py-0.5 text-[9px]' : 'top-3 left-3 px-2 py-0.5 text-[10px]'} z-10 rounded-md bg-brand text-black font-bold tracking-wider uppercase shadow-lg`}>
+      ★ Top pick
+    </div>
+  )
+}
+
+function DismissBtn({ onClick, size = 'md' }) {
+  const small = size === 'sm'
+  return (
+    <button
+      onClick={onClick}
+      title="Show me less like this"
+      className={`absolute -top-1.5 -right-1.5 z-10 ${small ? 'w-6 h-6 text-xs' : 'w-7 h-7 text-sm'} rounded-full bg-neutral-900/90 hover:bg-red-500 text-white border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg`}
+    >
+      ×
+    </button>
+  )
+}
+
+function ChipsRow({ tags, size = 'md' }) {
+  const small = size === 'sm'
+  return (
+    <div className={`mt-1.5 flex flex-wrap justify-center gap-1 px-1`}>
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className={`${small ? 'text-[9px] px-1.5' : 'text-[10px] px-2'} py-0.5 font-medium text-white/70 bg-white/[0.04] border border-white/[0.08] rounded-md leading-none whitespace-nowrap`}
+        >
+          #{tag}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// Landscape (16:9) variant of the poster — used only in Layout C.
+// Uses the regular poster URL cropped via object-cover; not a separate
+// backdrop, so behaviour stays identical to the regular cards.
+function LandscapePosterCard({ pick }) {
+  return (
+    <Link to={`/${pick.mediaType}/${pick.id}`} className="block group/lp">
+      <div className="relative aspect-[16/9] overflow-hidden rounded-md ring-1 ring-white/10 bg-white/[0.04] transition group-hover/lp:ring-brand">
+        {pick.posterUrl ? (
+          <img
+            src={pick.posterUrl}
+            alt={pick.title}
+            loading="lazy"
+            className="w-full h-full object-cover object-center"
+          />
+        ) : null}
+        {pick.rating > 0 && (
+          <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/70 text-[10px] font-semibold text-white">
+            <span className="text-brand">★</span> {pick.rating.toFixed(1)}
+          </div>
+        )}
+        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/70 text-[9px] font-bold tracking-wider uppercase text-white">
+          {pick.mediaType === 'tv' ? 'TV' : 'Movie'}
+        </div>
+      </div>
+      <div className="mt-1.5 px-0.5">
+        <div className="text-[12px] font-semibold leading-tight text-white/90 group-hover/lp:text-white transition-colors line-clamp-1">
+          {pick.title}
+        </div>
+        {pick.year && (
+          <div className="text-[10px] text-white/45 mt-0.5">{pick.year}</div>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+// ── Layout A — 3 equal cards in a row ───────────────────────────────
+function LayoutEqualRow({ picks, round, moods, occasion, onDismiss }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3">
+      {picks.map((pick, idx) => (
+        <motion.div
+          key={`A-${round}-${pick.id}`}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: idx * 0.05 }}
+          className="w-full relative group"
+        >
+          {idx === 0 && <TopPickBadge size="sm" />}
+          <DismissBtn onClick={() => onDismiss(pick)} size="sm" />
+          <MediaCard {...pick} />
+          <ChipsRow tags={tagsFor(pick, moods, occasion).slice(0, 3)} size="sm" />
+        </motion.div>
+      ))}
+    </div>
+  )
+}
+
+// ── Layout B — Featured big on top, 2 alts in a row below ───────────
+function LayoutFeaturedTop({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
+  const featured = picks[0]
+  const alts = picks.slice(1)
+  return (
+    <div className="space-y-2 lg:space-y-3">
+      {/* Featured */}
+      <motion.div
+        key={`B-feat-${round}-${featured.id}`}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.32 }}
+        className="w-full md:max-w-[calc((100vh-380px)*0.667)] md:mx-auto relative group"
+      >
+        <TopPickBadge />
+        <DismissBtn onClick={() => onDismiss(featured)} />
+        <MediaCard {...featured} />
+        <ChipsRow tags={tagsFor(featured, moods, occasion)} />
+        <p className="mt-1 text-center text-[11px] text-white/65 leading-snug px-2 line-clamp-2">
+          {reasonFor(featured, moods, occasionLabel)}
+        </p>
+      </motion.div>
+
+      {/* Alts row */}
+      <div className="grid grid-cols-2 gap-2 lg:gap-3">
+        {alts.map((pick, idx) => (
+          <motion.div
+            key={`B-alt-${round}-${pick.id}`}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.06 + idx * 0.04 }}
+            className="w-full md:max-w-[calc((100vh-560px)*0.333)] md:mx-auto relative group"
+          >
+            <DismissBtn onClick={() => onDismiss(pick)} size="sm" />
+            <MediaCard {...pick} />
+            <ChipsRow tags={tagsFor(pick, moods, occasion).slice(0, 3)} size="sm" />
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Layout C — Featured portrait + 2 landscape alts on the right ────
+function LayoutPortraitLandscape({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
+  const featured = picks[0]
+  const alts = picks.slice(1)
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 lg:gap-3">
+      {/* Featured portrait */}
+      <motion.div
+        key={`C-feat-${round}-${featured.id}`}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.32 }}
+        className="md:col-span-7 w-full md:max-w-[calc((100vh-340px)*0.667)] md:mx-auto relative group"
+      >
+        <TopPickBadge />
+        <DismissBtn onClick={() => onDismiss(featured)} />
+        <MediaCard {...featured} />
+        <ChipsRow tags={tagsFor(featured, moods, occasion)} />
+        <p className="mt-1 text-center text-[11px] text-white/65 leading-snug px-2 line-clamp-2">
+          {reasonFor(featured, moods, occasionLabel)}
+        </p>
+      </motion.div>
+
+      {/* Landscape alts */}
+      <div className="md:col-span-5 grid grid-cols-1 gap-2 lg:gap-3 self-start">
+        {alts.map((pick, idx) => (
+          <motion.div
+            key={`C-alt-${round}-${pick.id}`}
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.06 + idx * 0.05 }}
+            className="w-full relative group"
+          >
+            <DismissBtn onClick={() => onDismiss(pick)} size="sm" />
+            <LandscapePosterCard pick={pick} />
+            <ChipsRow tags={tagsFor(pick, moods, occasion).slice(0, 3)} size="sm" />
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Layout D — Single-card carousel ─────────────────────────────────
+function LayoutCarousel({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
+  const [idx, setIdx] = useState(0)
+  // Reset position whenever a new round comes in.
+  useEffect(() => { setIdx(0) }, [round])
+  const safeIdx = Math.min(idx, picks.length - 1)
+  const current = picks[safeIdx]
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-center gap-3">
+        <button
+          onClick={() => setIdx((i) => Math.max(0, i - 1))}
+          disabled={safeIdx === 0}
+          className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white border border-white/[0.08] flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+          aria-label="Previous pick"
+        >
+          ‹
+        </button>
+
+        <motion.div
+          key={`D-${round}-${current.id}-${safeIdx}`}
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.28 }}
+          className="w-full max-w-[calc((100vh-360px)*0.667)] mx-auto relative group"
+        >
+          {safeIdx === 0 && <TopPickBadge />}
+          <DismissBtn onClick={() => onDismiss(current)} />
+          <MediaCard {...current} />
+          <ChipsRow tags={tagsFor(current, moods, occasion)} />
+          {safeIdx === 0 && (
+            <p className="mt-1 text-center text-[11px] text-white/65 leading-snug px-2 line-clamp-2">
+              {reasonFor(current, moods, occasionLabel)}
+            </p>
+          )}
+        </motion.div>
+
+        <button
+          onClick={() => setIdx((i) => Math.min(picks.length - 1, i + 1))}
+          disabled={safeIdx >= picks.length - 1}
+          className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white border border-white/[0.08] flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+          aria-label="Next pick"
+        >
+          ›
+        </button>
+      </div>
+
+      {/* Position dots */}
+      <div className="flex items-center justify-center gap-1.5">
+        {picks.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setIdx(i)}
+            className={`h-1.5 rounded-full transition-all ${
+              i === safeIdx ? 'w-6 bg-white/80' : 'w-1.5 bg-white/25 hover:bg-white/40'
+            }`}
+            aria-label={`Go to pick ${i + 1}`}
+          />
+        ))}
+      </div>
+    </div>
   )
 }
 

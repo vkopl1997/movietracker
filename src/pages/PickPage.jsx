@@ -328,6 +328,26 @@ function tagsFor(pick, moods, occasion) {
 //   • Era match:                           +12
 //   • Base survival bonus:                 +5
 //   • Penalty cap (down-weighted genres):  -20
+// ─────────────────────────────────────────────────────────────────────
+// Score every candidate against the user's full signal set. The result
+// is a 0-100 number; movies and TV go through the same scorer so they
+// can be ranked together in one descending list and the Movies/TV/Both
+// switcher in the UI just re-slices the already-scored pool.
+//
+// Signal budget (aggressive — chosen so a "perfect" candidate against
+// every available signal lands near 100):
+//   Base survival bonus                          +5
+//   Top-genres-from-favorites (capped at 3 hits) +25 explicit / +35 inferred
+//   Mood genre overlap                           +15
+//   User-picked era match (or inferred dominant) +12
+//   Quality (rating > 7 floor)                   +17
+//   Tier A: direct /recommendations of reference +30
+//   Tier B: discover-with-keyword-filter match   +15
+//   Reference's PRIMARY genre match              +15 (aggressive new signal)
+//   Reference's era proximity (±10 yrs)          +10 (aggressive new signal)
+//   Title-direct relative (sequel/spinoff)       +30
+//   Penalty: down-weighted genres                up to -20
+// ─────────────────────────────────────────────────────────────────────
 function scoreCandidate(movie, ctx) {
   let score = 5                                                 // small base — any survivor still > 0
   const movieGenres = new Set(movie.genreIds || [])
@@ -365,15 +385,19 @@ function scoreCandidate(movie, ctx) {
     score += Math.min(17, Math.max(0, (movie.rating - 7) * 8.5))
   }
 
-  // (5) Make-it-feel-like boost — reduced from +35 explicit / +17 inferred
-  // because the previous gap made TV recommendations from /recommendations
-  // (which get the boost) systematically outscore movies from the
-  // keyword-bridged discover pool (which used to NOT get it). Now ALL
-  // ref-related candidates (direct recs AND keyword-themed discover) are
-  // marked in boostedIds, so the boost is broadly applied and the gap
-  // between TV and movies in Both mode shrinks to genre/quality alone.
-  if (ctx.boostedIds?.has(movie.id)) {
-    score += ctx.explicitMode ? 25 : 12
+  // (5) Source-tier boost — distinguishes "TMDb explicitly says this is
+  // adjacent to your reference" (Tier A, /recommendations) from "this
+  // showed up in a discover query enriched with the reference's
+  // keywords" (Tier B). Both signal alignment with the user's pick, but
+  // Tier A is a stronger statement, so we boost it more.
+  //
+  // When the user has an explicit signal (reference movie OR themes),
+  // the weights are aggressive. Without one we lean on inferred taste
+  // (top genres) and apply much smaller boosts to favorites-recs.
+  if (ctx.tierARecs?.has(movie.id)) {
+    score += ctx.explicitMode ? 30 : 15
+  } else if (ctx.tierBDiscover?.has(movie.id)) {
+    score += ctx.explicitMode ? 15 : 8
   }
 
   // (5b) Title-direct relative — a sequel / prequel / spinoff. If the
@@ -391,6 +415,26 @@ function scoreCandidate(movie, ctx) {
     if (directRelative) score += 30
   }
 
+  // (5c) Reference's PRIMARY GENRE match (+15) — aggressive new signal.
+  // The first entry in TMDb's genreIds for a title is typically its most
+  // representative genre. If the user picked Heat (Crime, Drama), we
+  // strongly prefer candidates whose primary genre is also Crime, not
+  // just-Drama. For TV references queried against movies, refPrimaryGenre
+  // is already translated via tvGenresToMovieGenres in the caller.
+  if (ctx.refPrimaryGenre && movieGenres.has(ctx.refPrimaryGenre)) {
+    score += 15
+  }
+
+  // (5d) Reference's ERA proximity (+10) — aggressive new signal.
+  // Candidates within ±10 years of the reference get a full boost,
+  // ±20 years get half. So Heat (1995) prefers The Usual Suspects (1995)
+  // over a 2024 cyber-heist film, all else equal.
+  if (ctx.refYear && movie.year) {
+    const diff = Math.abs(movie.year - ctx.refYear)
+    if (diff <= 10) score += 10
+    else if (diff <= 20) score += 5
+  }
+
   // (6) Penalty: down-weighted genres — capped at -20 total.
   let penalty = 0
   for (const g of movieGenres) {
@@ -400,6 +444,67 @@ function scoreCandidate(movie, ctx) {
 
   // Clean 0-100 range.
   return Math.max(0, Math.min(100, score))
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// deriveTopPicks
+//
+// Given a fully scored + sorted pool and the user's current display
+// state (Movies/TV/Both, plus the seen-set from prior Pick again
+// rounds), return up to 3 picks that:
+//   - match the mediaType filter
+//   - haven't been shown yet this session
+//   - diversify primary genre when possible
+//
+// Pure function. Called by generate() on the fresh pool AND by the
+// mediaType switcher to re-slice the cached scored pool with zero
+// network cost. The same diversification rule applies regardless of
+// which entry point triggered it, which keeps the picks consistent.
+//
+// `scoredPool` is an array of `{ movie, score }` OR an array of
+// movie-shaped objects that include `_score`. The function handles
+// both shapes — the live generate() call passes the former, the
+// switcher passes the latter (recovered from React state).
+// ─────────────────────────────────────────────────────────────────────
+function deriveTopPicks(scoredPool, mediaType, seenIds) {
+  if (!scoredPool?.length) return []
+
+  // Normalize to { movie, score } so the rest of the function doesn't
+  // have to care which shape it came in as.
+  const entries = scoredPool.map((s) => (
+    s.movie ? s : { movie: s, score: s._score ?? 0 }
+  ))
+
+  // Filter by mediaType: 'both' keeps everything, otherwise only items
+  // of the matching type. This is the entire "Movies/TV/Both is now a
+  // display filter" guarantee — applied here, not at fetch time.
+  const filtered = entries.filter((e) => (
+    mediaType === 'both' || e.movie.mediaType === mediaType
+  ))
+
+  // Diversify primary genre — avoid 3 picks that are all the same genre.
+  // Top scorer goes in unconditionally; after that we prefer movies
+  // whose primary genre we haven't already used.
+  const finalPicks = []
+  const usedPrimary = new Set()
+  for (const e of filtered) {
+    if (finalPicks.length >= 3) break
+    if (seenIds?.has(e.movie.id)) continue
+    const primary = e.movie.genreIds?.[0]
+    if (finalPicks.length > 0 && primary && usedPrimary.has(primary)) continue
+    finalPicks.push(e.movie)
+    if (primary) usedPrimary.add(primary)
+  }
+  // Fallback: if diversification left us short, fill from score order
+  // (still respecting the filter + seen-set).
+  if (finalPicks.length < 3) {
+    for (const e of filtered) {
+      if (finalPicks.length >= 3) break
+      if (seenIds?.has(e.movie.id)) continue
+      if (!finalPicks.find((p) => p.id === e.movie.id)) finalPicks.push(e.movie)
+    }
+  }
+  return finalPicks
 }
 
 function PickPage() {
@@ -435,6 +540,12 @@ function PickPage() {
   // ── Run state ─────────────────────────────────────────────────────
   const [loading, setLoading]       = useState(false)
   const [picks, setPicks]           = useState(null)
+  // Cached scored pool from the most recent generate() call — top 60
+  // candidates by score, including their _score. We keep this in state
+  // so the Movies/TV/Both switcher in ResultsView can re-slice it via
+  // deriveTopPicks() with zero network cost. Empty until the first
+  // generate() succeeds.
+  const [scoredPool, setScoredPool] = useState([])
   const [topScore, setTopScore]     = useState(null)          // best score in the picked set
   const [error, setError]           = useState(null)
 
@@ -634,27 +745,35 @@ function PickPage() {
     })
   }
 
-  // Inline mediaType switcher in ResultsView calls this. The ref flag lets
-  // the useEffect below distinguish a user click from a session-storage
-  // restore (which also sets mediaType but should NOT re-run generate).
-  const userInitiatedMediaChange = useRef(false)
+  // Inline mediaType switcher in ResultsView calls this. The pool is
+  // fetched ONCE per generate() and cached as `scoredPool`; switching
+  // Movies / TV / Both is now a pure in-memory re-slice via
+  // deriveTopPicks() — no extra network calls, no clearing seenIds,
+  // no triggering generate(). Pick again is still the way to fetch
+  // fresh candidates.
   function changeMediaType(newType) {
     if (newType === mediaType) return
-    userInitiatedMediaChange.current = true
-    // Clear seenIds so the new media type yields a FRESH top-3 by score,
-    // not the leftovers after the previous type's seen-set was applied.
-    // Otherwise switching Movies -> TV would surface lower-scoring picks
-    // because the highest scorers might be flagged as "already seen" from
-    // the previous round (especially in Both mode where IDs can collide
-    // with the previously shown movies).
-    setSeenIds(new Set())
     setMediaType(newType)
+    if (hasPicked && scoredPool.length > 0) {
+      // Re-derive top 3 from the cached pool under the new filter,
+      // skipping the IDs we've already shown this session.
+      const next = deriveTopPicks(scoredPool, newType, seenIds)
+      setPicks(next)
+      // Recompute top score for the bar based on the picks we ended up
+      // surfacing under the new filter (not the all-time best in the pool).
+      const newTop = next?.[0]
+      if (newTop) {
+        const cached = scoredPool.find((s) => s.id === newTop.id)
+        if (cached?._score != null) setTopScore(Math.round(cached._score))
+      }
+      // Remember what we just surfaced so Pick again walks past them.
+      setSeenIds((prev) => {
+        const np = new Set(prev)
+        for (const m of next) np.add(m.id)
+        return np
+      })
+    }
   }
-  useEffect(() => {
-    if (!userInitiatedMediaChange.current) return
-    userInitiatedMediaChange.current = false
-    if (hasPicked) generate()
-  }, [mediaType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function generate() {
     if (!canGenerate) return
@@ -766,9 +885,18 @@ function PickPage() {
 
     try {
       let pool = []
-      // boostedIds = candidates that came from an explicit "similar to X" or
-      // the user's favorites' recommendation set. The scorer rewards these.
-      const boostedIds = new Set()
+      // Source tiers — different recommendation paths contribute different
+      // strength signals. The scorer rewards Tier A more than Tier B.
+      //   Tier A = items pulled directly from TMDb's /recommendations
+      //            endpoint of the user's reference, OR from
+      //            /recommendations of the user's favorites in inferred
+      //            mode. "TMDb thinks these are adjacent."
+      //   Tier B = items from a discover query enriched with the
+      //            reference's keywords or the user's picked themes.
+      //            "These share at least one signal with what you asked
+      //            for." (Big bucket but more diffuse.)
+      const tierARecs     = new Set()
+      const tierBDiscover = new Set()
 
       // Explicit mode = the user gave a direct signal ("feel like Heat",
       // theme = heist). When true, the favorites' recommendation pool is
@@ -781,42 +909,35 @@ function PickPage() {
       // [#3] Similar-to reference: pull 2 pages of recommendations so the
       // pool is dominated by titles adjacent to the user's pick.
       //
-      // Strict mediaType filter: TMDb's /recommendations endpoint returns
-      // titles of the SAME mediaType as the reference. So if the user picks
-      // Breaking Bad (tv) but asked for Movies, those recs would be TV shows
-      // and would leak in. Skip the fetch entirely when the reference's type
-      // doesn't match the filter — the discover query + themes still bridge
-      // the cross-type case (movies tagged with BB's keywords).
+      // CHANGED: We now ALWAYS fetch the recommendations regardless of the
+      // user's Movies/TV/Both filter. TMDb's /recommendations endpoint
+      // returns titles of the SAME mediaType as the reference (so a TV
+      // ref returns TV recs), but those still belong in the unified pool
+      // — the Movies/TV/Both filter is applied at the DISPLAY stage now,
+      // not the fetch stage. This way switching the filter in the
+      // results view doesn't require a refetch.
       if (similarTo?.id) {
         const refType = similarTo.mediaType || 'movie'
-        const refMatchesFilter = mediaType === 'both' || mediaType === refType
-        if (refMatchesFilter) {
-          const [recs1, recs2] = await Promise.all([
-            getRecommendations(refType, similarTo.id, 1).catch(() => []),
-            getRecommendations(refType, similarTo.id, 2).catch(() => []),
-          ])
-          for (const r of [...recs1, ...recs2]) {
-            if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
-              pool.push(r)
-              boostedIds.add(r.id)
-            }
+        const [recs1, recs2] = await Promise.all([
+          getRecommendations(refType, similarTo.id, 1).catch(() => []),
+          getRecommendations(refType, similarTo.id, 2).catch(() => []),
+        ])
+        for (const r of [...recs1, ...recs2]) {
+          if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
+            pool.push(r)
+            tierARecs.add(r.id)
           }
         }
       }
 
       // [#1] Auto-boost from the user's top favorites — only when no explicit
       // signal was given. Pulls recommendations of up to 3 fav movies AND up
-      // to 3 fav TV shows, honoring the mediaType filter (so a "TV only"
-      // generate doesn't pull movie recs into the pool and vice versa).
+      // to 3 fav TV shows. ALWAYS pulls both sides now (regardless of the
+      // user's display filter) so the unified pool has all available
+      // signals; the filter applies at the display step.
       if (!explicitMode) {
-        const wantMovie = mediaType === 'movie' || mediaType === 'both'
-        const wantTv    = mediaType === 'tv'    || mediaType === 'both'
-        const favMovies = wantMovie
-          ? items.filter((i) => i.isFavorite && i.mediaType === 'movie').slice(0, 3)
-          : []
-        const favTv = wantTv
-          ? items.filter((i) => i.isFavorite && i.mediaType === 'tv').slice(0, 3)
-          : []
+        const favMovies = items.filter((i) => i.isFavorite && i.mediaType === 'movie').slice(0, 3)
+        const favTv     = items.filter((i) => i.isFavorite && i.mediaType === 'tv').slice(0, 3)
         const recPromises = [
           ...favMovies.map((f) => getRecommendations('movie', f.id).catch(() => [])),
           ...favTv.map((f) => getRecommendations('tv', f.id).catch(() => [])),
@@ -827,7 +948,7 @@ function PickPage() {
             for (const r of recs) {
               if ((r.rating ?? 0) >= HIGH_RATING_FLOOR) {
                 pool.push(r)
-                boostedIds.add(r.id)
+                tierARecs.add(r.id)
               }
             }
           }
@@ -837,10 +958,13 @@ function PickPage() {
       // Discover query for variety. FIXED pages (no Math.random) so the pool
       // is identical across rounds; combined with score-descending sort and
       // seenIds filtering, this guarantees: round 0 shows the top-3 by score,
-      // round 1 the next-3, etc. Movies + TV runs in parallel when mediaType
-      // is 'both'; only the matching side runs when restricted.
-      const wantMovie = mediaType === 'movie' || mediaType === 'both'
-      const wantTv    = mediaType === 'tv'    || mediaType === 'both'
+      // round 1 the next-3, etc.
+      //
+      // CHANGED: Movies AND TV discover queries now ALWAYS run in parallel,
+      // regardless of the user's Movies/TV/Both display filter. We want a
+      // single unified pool so the in-memory switch between Movies / TV /
+      // Both is just a client-side re-slice with no extra network calls.
+      //
       // TV genres differ from movie genres (Action+Adventure merge, etc.),
       // so translate the filter before hitting /discover/tv.
       // TV genres for the query. If the ref is a TV show and we have no
@@ -862,39 +986,33 @@ function PickPage() {
         runtimeMax: undefined,
         familyFriendly: false,   // MPAA certs are movie-only
       }
-      const discoverPromises = []
-      if (wantMovie) {
-        discoverPromises.push(
-          discoverMovies({ ...baseFilter, page: 1 }),
-          discoverMovies({ ...baseFilter, page: 2 }),
-        )
-      }
-      if (wantTv) {
-        discoverPromises.push(
-          discoverTv({ ...tvFilter, page: 1 }),
-          discoverTv({ ...tvFilter, page: 2 }),
-        )
-      }
-      const discoverResults = await Promise.all(discoverPromises)
+      const discoverResults = await Promise.all([
+        discoverMovies({ ...baseFilter, page: 1 }),
+        discoverMovies({ ...baseFilter, page: 2 }),
+        discoverTv     ({ ...tvFilter,   page: 1 }),
+        discoverTv     ({ ...tvFilter,   page: 2 }),
+      ])
+      // Discover items become Tier B when the query was enriched with the
+      // reference's keywords (similarTo set) OR with explicit theme picks.
+      // Either way, they share at least one signal with what the user asked
+      // for. Otherwise they're just generic taste-bias results, no boost.
+      const discoverIsBoosted = !!similarTo?.id || pickedThemes.size > 0
       for (const arr of discoverResults) {
         pool.push(...arr)
-        // When a reference is set, the discover query was enriched with that
-        // ref's keywords (OR mode). So EVERY result that came back shares at
-        // least one keyword with the reference — they're ref-themed. Mark
-        // them as boosted so the scoring treats them on equal footing with
-        // direct TMDb recommendations. This is what closes the gap that made
-        // TV always outscore movies in Both mode.
-        if (similarTo?.id) {
-          for (const r of arr) boostedIds.add(r.id)
+        if (discoverIsBoosted) {
+          for (const r of arr) tierBDiscover.add(r.id)
         }
       }
 
       // Dedupe + skip seen/watched + ENFORCE rating floor client-side
       // (defense-in-depth — sometimes TMDb returns just-below-threshold items).
-      // ALSO enforces the mediaType filter as a final safety net: even if
-      // something snuck into the pool via a path that didn't honor it (a future
-      // code change, an unexpected TMDb response, anything), it gets dropped
-      // here. Belt + suspenders on the user's "Movies only" / "TV only" choice.
+      //
+      // NOTE: We no longer filter by mediaType here. Movies and TV both stay
+      // in the unified pool; the Movies/TV/Both filter is applied at the
+      // display stage. That's what makes the filter switch instant (no
+      // refetch) and lets a TV reference's recommendations contribute to
+      // the "Both" view even if the user later flips to "Movies".
+      //
       // baseFilter.withoutGenres only reaches the discover pool via TMDb's
       // `without_genres` param. The favorites-recs and similarTo-recs paths
       // come from TMDb's /recommendations endpoint which doesn't accept any
@@ -909,7 +1027,6 @@ function PickPage() {
       const dedupe = new Set()
       pool = pool
         .filter((m) => (m.rating ?? 0) >= HIGH_RATING_FLOOR)
-        .filter((m) => mediaType === 'both' || m.mediaType === mediaType)
         // Hard genre-exclude across ALL sources. Was previously only
         // applied via discover; this catches the favorites-recs / similar-to
         // leak (the "drama into friends-over" bug).
@@ -930,22 +1047,15 @@ function PickPage() {
 
       // If too few, fetch deterministic pages 3+4 and also widen OBSCURITY
       // (vote_count) — but never the rating floor. Pages stay fixed so the
-      // expanded pool is also stable across rounds. Honors mediaType too.
+      // expanded pool is also stable across rounds. Both sides ALWAYS fetch
+      // now so the unified pool stays balanced.
       if (pool.length < 3) {
-        const relaxedPromises = []
-        if (wantMovie) {
-          relaxedPromises.push(
-            discoverMovies({ ...baseFilter, minVoteCount: 100, page: 3 }),
-            discoverMovies({ ...baseFilter, minVoteCount: 100, page: 4 }),
-          )
-        }
-        if (wantTv) {
-          relaxedPromises.push(
-            discoverTv({ ...tvFilter, minVoteCount: 100, page: 3 }),
-            discoverTv({ ...tvFilter, minVoteCount: 100, page: 4 }),
-          )
-        }
-        const relaxedResults = await Promise.all(relaxedPromises)
+        const relaxedResults = await Promise.all([
+          discoverMovies({ ...baseFilter, minVoteCount: 100, page: 3 }),
+          discoverMovies({ ...baseFilter, minVoteCount: 100, page: 4 }),
+          discoverTv     ({ ...tvFilter,   minVoteCount: 100, page: 3 }),
+          discoverTv     ({ ...tvFilter,   minVoteCount: 100, page: 4 }),
+        ])
         const extras = relaxedResults.flat().filter((m) =>
           (m.rating ?? 0) >= HIGH_RATING_FLOOR &&
           !watchedIds.has(m.id) && !seenIds.has(m.id) && !pool.some((p) => p.id === m.id)
@@ -964,61 +1074,57 @@ function PickPage() {
         return
       }
 
-      // ── DETERMINISTIC SCORING (no random shuffle) ────────────────────
-      // Every candidate is scored against:
-      //   • top genres in user's favorites      (0-40)
-      //   • mood genres for tonight             (0-25)
-      //   • era preference                      (0-15)
-      //   • rating quality                      (0-10)
-      //   • boost: similar to favorites         (+12)
-      //   • penalty: down-weighted genres       (-20 per hit)
-      // Sort descending and take top 3. This is what makes picks feel
-      // targeted instead of random.
+      // ── UNIFIED SCORING (movies + TV in one ranking) ────────────────
+      // Every candidate gets a single 0-100 score from scoreCandidate.
+      // Movies and TV are NOT split before scoring — they ride the same
+      // weighted signals so a TV ref's best matches and a movie ref's
+      // best matches both surface naturally. The Movies/TV/Both filter
+      // is applied at the display step (deriveTopPicks below).
+      //
+      // Reference-derived signals (refPrimaryGenre, refYear) feed in via
+      // ctx so the new genre + era proximity bonuses know what to compare
+      // against. For a TV reference, translate its primary genre into a
+      // movie-side ID so movie candidates can match it too.
+      const refType = similarTo?.mediaType || 'movie'
+      const refPrimaryGenre = similarTo?.genreIds?.[0]
+      const refPrimaryGenreMovieSide = refPrimaryGenre
+        ? (refType === 'tv'
+            ? (tvGenresToMovieGenres([refPrimaryGenre])[0] ?? refPrimaryGenre)
+            : refPrimaryGenre)
+        : null
+      const refYear = similarTo?.year || null
+
       const ctx = {
         topGenres,
         moodGenres,
         era,
         dominantEra: tasteProfile?.dominantEra,
         downGenres,
-        boostedIds,
+        tierARecs,
+        tierBDiscover,
         explicitMode,
-        similarTo,                 // for the title-direct-relative bonus
+        similarTo,                                  // title-direct relative bonus
+        refPrimaryGenre: refPrimaryGenreMovieSide,  // +15 boost
+        refYear,                                    // +10 era-proximity boost
       }
       const scored = pool
         .map((m) => ({ movie: m, score: scoreCandidate(m, ctx) }))
         .sort((a, b) => b.score - a.score)
 
-      // Diversify primary genre — avoid 3 picks that are all the same genre.
-      // We take the top-scoring movie unconditionally, then prefer movies
-      // whose primary genre we haven't already used.
-      // ALSO: in Both mode, enforce mediaType variety — don't return 3 TV
-      // shows if there's a movie candidate available (or vice versa).
-      const finalPicks = []
-      const usedPrimary = new Set()
-      const typeCount = { movie: 0, tv: 0 }
-      const poolHasBothTypes =
-        mediaType === 'both' &&
-        scored.some((s) => s.movie.mediaType === 'movie') &&
-        scored.some((s) => s.movie.mediaType === 'tv')
-      for (const s of scored) {
-        if (finalPicks.length >= 3) break
-        const primary = s.movie.genreIds?.[0]
-        if (finalPicks.length > 0 && primary && usedPrimary.has(primary)) continue
-        // In Both mode: never take a 3rd of the same type if the other type
-        // still has candidates left to find. Ensures at least 1 of each.
-        const candType = s.movie.mediaType
-        if (poolHasBothTypes && typeCount[candType] >= 2) continue
-        finalPicks.push(s.movie)
-        typeCount[candType] = (typeCount[candType] || 0) + 1
-        if (primary) usedPrimary.add(primary)
-      }
-      // If diversification left us short (rare — small pool), fill from score order.
-      if (finalPicks.length < 3) {
-        for (const s of scored) {
-          if (finalPicks.length >= 3) break
-          if (!finalPicks.find((p) => p.id === s.movie.id)) finalPicks.push(s.movie)
-        }
-      }
+      // Cache the full scored pool so the Movies/TV/Both switcher in
+      // ResultsView can re-slice it in-memory without a refetch.
+      // Cap at 60 items so memory stays sane — the user only needs a
+      // dozen Pick again rounds worth, even when sliced by type.
+      setScoredPool(scored.slice(0, 60).map((s) => ({
+        ...s.movie,
+        _score: s.score,
+      })))
+
+      // Derive the top 3 picks from the scored pool, honoring the user's
+      // current Movies/TV/Both display filter and the diversification
+      // rules. seenIds is empty here on round 0 but accumulates on Pick
+      // again, which is how rounds 1+ walk down the ranked list.
+      const finalPicks = deriveTopPicks(scored, mediaType, seenIds)
 
       setPicks(finalPicks)
       setTopScore(Math.round(scored[0]?.score ?? 0))
@@ -1045,7 +1151,8 @@ function PickPage() {
     setLanguages(new Set()); setPrompt(''); setSimilarTo(null)
     setSimilarQuery(''); setSimilarResults([])
     setSeenIds(new Set()); setDownGenres({}); setSortIdx(0); setRound(0)
-    setHasPicked(false); setPicks(null); setTopScore(null); setError(null)
+    setHasPicked(false); setPicks(null); setScoredPool([])
+    setTopScore(null); setError(null)
     try { sessionStorage.removeItem(SESSION_KEY) } catch {}
   }
 
@@ -1475,7 +1582,7 @@ function ReferenceSection({
               {similarResults.map((m) => (
                 <button
                   key={`${m.mediaType}-${m.id}`}
-                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [] }); setSimilarQuery(''); setSimilarOpen(false) }}
+                  onMouseDown={() => { setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType, genreIds: m.genreIds || [], year: m.year || null }); setSimilarQuery(''); setSimilarOpen(false) }}
                   className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left transition"
                 >
                   {m.posterUrl && <img src={m.posterUrl} alt="" className="w-8 h-12 object-cover rounded shrink-0" />}
@@ -1509,7 +1616,7 @@ function ReferenceSection({
               {themeMovies.map((m) => (
                 <motion.button
                   key={m.id}
-                  onClick={() => setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType || 'movie', genreIds: m.genreIds || [] })}
+                  onClick={() => setSimilarTo({ id: m.id, title: m.title, mediaType: m.mediaType || 'movie', genreIds: m.genreIds || [], year: m.year || null })}
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.94 }}
                   className="px-3 py-1.5 rounded-full text-xs bg-brand/10 hover:bg-brand/20 border border-brand/30 hover:border-brand/50 text-brand transition"
@@ -1532,7 +1639,7 @@ function ReferenceSection({
               {userFavorites.slice(0, 5).map((f) => (
                 <motion.button
                   key={f.id}
-                  onClick={() => setSimilarTo({ id: f.id, title: f.title, mediaType: f.mediaType, genreIds: f.genreIds || [] })}
+                  onClick={() => setSimilarTo({ id: f.id, title: f.title, mediaType: f.mediaType, genreIds: f.genreIds || [], year: f.year || null })}
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.94 }}
                   className="px-3 py-1.5 rounded-full text-xs bg-white/[0.06] hover:bg-white/10 border border-white/10 text-neutral-700 dark:text-white/70 transition"

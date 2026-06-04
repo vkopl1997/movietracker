@@ -1047,7 +1047,12 @@ function PickPage() {
         // without this it ends up in its own picks.
         .filter((m) => !similarTo?.id || m.id !== similarTo.id)
         .filter((m) => dedupe.has(m.id) ? false : (dedupe.add(m.id), true))
-        .filter((m) => !watchedIds.has(m.id) && !seenIds.has(m.id))
+        // NOTE: we DON'T filter seenIds here. The full ranked pool gets
+        // cached, and deriveTopPicks skips seenIds at display time. This
+        // way, when the user switches Movies -> TV -> Movies, the cached
+        // pool still contains all previously-shown movies and the new
+        // Movies view can re-anchor at the absolute top of the ranking.
+        .filter((m) => !watchedIds.has(m.id))
 
       // If too few, fetch deterministic pages 3+4 and also widen OBSCURITY
       // (vote_count) — but never the rating floor. Pages stay fixed so the
@@ -1116,10 +1121,11 @@ function PickPage() {
         .sort((a, b) => b.score - a.score)
 
       // Cache the full scored pool so the Movies/TV/Both switcher in
-      // ResultsView can re-slice it in-memory without a refetch.
-      // Cap at 60 items so memory stays sane — the user only needs a
-      // dozen Pick again rounds worth, even when sliced by type.
-      setScoredPool(scored.slice(0, 60).map((s) => ({
+      // ResultsView can re-slice it in-memory without a refetch. We
+      // keep ALL items (incl. ones in seenIds) because the switcher
+      // resets seenIds and re-anchors at the absolute top of the new
+      // filter — that only works if seen items are still in the cache.
+      setScoredPool(scored.map((s) => ({
         ...s.movie,
         _score: s.score,
       })))
@@ -1131,7 +1137,16 @@ function PickPage() {
       const finalPicks = deriveTopPicks(scored, mediaType, seenIds)
 
       setPicks(finalPicks)
-      setTopScore(Math.round(scored[0]?.score ?? 0))
+      // Score bar reflects the DISPLAYED top pick — not the overall
+      // pool top, which might be a hidden cross-type item under the
+      // user's current filter. So Movies view shows the top *movie*
+      // score, TV view shows the top *TV* score, Both shows whichever
+      // is the absolute top.
+      const displayedTop = finalPicks[0]
+      const displayedTopEntry = displayedTop
+        ? scored.find((s) => s.movie.id === displayedTop.id)
+        : null
+      setTopScore(Math.round(displayedTopEntry?.score ?? 0))
       setSeenIds((prev) => {
         const next = new Set(prev)
         for (const m of finalPicks) next.add(m.id)

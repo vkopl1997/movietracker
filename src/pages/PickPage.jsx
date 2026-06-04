@@ -2555,17 +2555,32 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           the outer 12-col. The narrower right column naturally shrinks
           each card so the trio fits in a typical laptop viewport
           without scrolling. */}
-      {/* Layout-variant switcher chips — pick one then "Pick again" keeps
-          using your choice. Once you decide, ping me and I strip the
-          switcher + the non-winners. */}
-      <ResultsCardsSwitcher
-        picks={picks}
-        round={round}
-        moods={moods}
-        occasion={occasion}
-        occasionLabel={occasionLabel}
-        onDismiss={onDismiss}
-      />
+      {/* Featured portrait left + 2 landscape alts right — the winning
+          layout from the variant pick. */}
+      <div className="min-h-[280px] md:min-h-[380px]">
+        <AnimatePresence mode="wait">
+          {picks?.length === 0 ? (
+            <ExhaustedState key="exhausted" />
+          ) : picks?.length > 0 ? (
+            <motion.div
+              key={`results-${round}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22 }}
+            >
+              <LayoutPortraitLandscape
+                picks={picks}
+                round={round}
+                moods={moods}
+                occasion={occasion}
+                occasionLabel={occasionLabel}
+                onDismiss={onDismiss}
+              />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+      </div>
       </div>{/* /right inner framed table */}
       </div>{/* /right column */}
 
@@ -2575,88 +2590,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// ResultsCardsSwitcher
-//
-// Temporary harness: shows a small A/B/C/D variant switcher above the
-// cards so the user can flip between four layout proposals on the same
-// pick data. Whichever variant is selected becomes the active layout.
-// Persisted to sessionStorage so Pick again keeps the chosen variant.
-// Once the user decides, we strip the switcher + non-winners.
-//
-//   A — 3 equal cards in a row
-//   B — Featured big on top, 2 alts in a row below
-//   C — Featured (portrait) on the left, 2 landscape alts on the right
-//   D — Single-card carousel, arrows to flip through
-// ─────────────────────────────────────────────────────────────────────
-const LAYOUT_STORE_KEY = 'mt_picker_layout_v1'
-
-function ResultsCardsSwitcher({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
-  const [variant, setVariant] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem(LAYOUT_STORE_KEY)
-      return ['A', 'B', 'C', 'D'].includes(saved) ? saved : 'A'
-    } catch { return 'A' }
-  })
-  useEffect(() => {
-    try { sessionStorage.setItem(LAYOUT_STORE_KEY, variant) } catch {}
-  }, [variant])
-
-  const variantProps = { picks, round, moods, occasion, occasionLabel, onDismiss }
-
-  return (
-    <div className="space-y-2">
-      {/* Switcher chips */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[10px] tracking-[0.18em] uppercase text-white/40 font-medium mr-1">
-          Layout
-        </span>
-        {[
-          { id: 'A', label: 'A · Equal row' },
-          { id: 'B', label: 'B · Featured top' },
-          { id: 'C', label: 'C · Portrait + landscape' },
-          { id: 'D', label: 'D · Carousel' },
-        ].map((opt) => (
-          <button
-            key={opt.id}
-            onClick={() => setVariant(opt.id)}
-            className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
-              variant === opt.id
-                ? 'bg-white/[0.12] text-white'
-                : 'bg-white/[0.04] text-white/55 hover:bg-white/[0.08] hover:text-white'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Cards area */}
-      <div className="min-h-[280px] md:min-h-[380px]">
-        <AnimatePresence mode="wait">
-          {picks?.length === 0 ? (
-            <ExhaustedState key="exhausted" />
-          ) : picks?.length > 0 ? (
-            <motion.div
-              key={`variant-${variant}-${round}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.22 }}
-            >
-              {variant === 'A' && <LayoutEqualRow {...variantProps} />}
-              {variant === 'B' && <LayoutFeaturedTop {...variantProps} />}
-              {variant === 'C' && <LayoutPortraitLandscape {...variantProps} />}
-              {variant === 'D' && <LayoutCarousel {...variantProps} />}
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-      </div>
-    </div>
-  )
-}
-
-// ── Shared bits ─────────────────────────────────────────────────────
+// ── Shared bits used by the results layout ──────────────────────────
 function TopPickBadge({ size = 'md' }) {
   const small = size === 'sm'
   return (
@@ -2731,72 +2665,7 @@ function LandscapePosterCard({ pick }) {
   )
 }
 
-// ── Layout A — 3 equal cards in a row ───────────────────────────────
-function LayoutEqualRow({ picks, round, moods, occasion, onDismiss }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3">
-      {picks.map((pick, idx) => (
-        <motion.div
-          key={`A-${round}-${pick.id}`}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: idx * 0.05 }}
-          className="w-full relative group"
-        >
-          {idx === 0 && <TopPickBadge size="sm" />}
-          <DismissBtn onClick={() => onDismiss(pick)} size="sm" />
-          <MediaCard {...pick} />
-          <ChipsRow tags={tagsFor(pick, moods, occasion).slice(0, 3)} size="sm" />
-        </motion.div>
-      ))}
-    </div>
-  )
-}
-
-// ── Layout B — Featured big on top, 2 alts in a row below ───────────
-function LayoutFeaturedTop({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
-  const featured = picks[0]
-  const alts = picks.slice(1)
-  return (
-    <div className="space-y-2 lg:space-y-3">
-      {/* Featured */}
-      <motion.div
-        key={`B-feat-${round}-${featured.id}`}
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.32 }}
-        className="w-full md:max-w-[calc((100vh-380px)*0.667)] md:mx-auto relative group"
-      >
-        <TopPickBadge />
-        <DismissBtn onClick={() => onDismiss(featured)} />
-        <MediaCard {...featured} />
-        <ChipsRow tags={tagsFor(featured, moods, occasion)} />
-        <p className="mt-1 text-center text-[11px] text-white/65 leading-snug px-2 line-clamp-2">
-          {reasonFor(featured, moods, occasionLabel)}
-        </p>
-      </motion.div>
-
-      {/* Alts row */}
-      <div className="grid grid-cols-2 gap-2 lg:gap-3">
-        {alts.map((pick, idx) => (
-          <motion.div
-            key={`B-alt-${round}-${pick.id}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.06 + idx * 0.04 }}
-            className="w-full md:max-w-[calc((100vh-560px)*0.333)] md:mx-auto relative group"
-          >
-            <DismissBtn onClick={() => onDismiss(pick)} size="sm" />
-            <MediaCard {...pick} />
-            <ChipsRow tags={tagsFor(pick, moods, occasion).slice(0, 3)} size="sm" />
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Layout C — Featured portrait + 2 landscape alts on the right ────
+// ── Results layout: featured portrait + 2 landscape alts ────────────
 function LayoutPortraitLandscape({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
   const featured = picks[0]
   const alts = picks.slice(1)
@@ -2833,71 +2702,6 @@ function LayoutPortraitLandscape({ picks, round, moods, occasion, occasionLabel,
             <LandscapePosterCard pick={pick} />
             <ChipsRow tags={tagsFor(pick, moods, occasion).slice(0, 3)} size="sm" />
           </motion.div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Layout D — Single-card carousel ─────────────────────────────────
-function LayoutCarousel({ picks, round, moods, occasion, occasionLabel, onDismiss }) {
-  const [idx, setIdx] = useState(0)
-  // Reset position whenever a new round comes in.
-  useEffect(() => { setIdx(0) }, [round])
-  const safeIdx = Math.min(idx, picks.length - 1)
-  const current = picks[safeIdx]
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-center gap-3">
-        <button
-          onClick={() => setIdx((i) => Math.max(0, i - 1))}
-          disabled={safeIdx === 0}
-          className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white border border-white/[0.08] flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-          aria-label="Previous pick"
-        >
-          ‹
-        </button>
-
-        <motion.div
-          key={`D-${round}-${current.id}-${safeIdx}`}
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.28 }}
-          className="w-full max-w-[calc((100vh-360px)*0.667)] mx-auto relative group"
-        >
-          {safeIdx === 0 && <TopPickBadge />}
-          <DismissBtn onClick={() => onDismiss(current)} />
-          <MediaCard {...current} />
-          <ChipsRow tags={tagsFor(current, moods, occasion)} />
-          {safeIdx === 0 && (
-            <p className="mt-1 text-center text-[11px] text-white/65 leading-snug px-2 line-clamp-2">
-              {reasonFor(current, moods, occasionLabel)}
-            </p>
-          )}
-        </motion.div>
-
-        <button
-          onClick={() => setIdx((i) => Math.min(picks.length - 1, i + 1))}
-          disabled={safeIdx >= picks.length - 1}
-          className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white border border-white/[0.08] flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-          aria-label="Next pick"
-        >
-          ›
-        </button>
-      </div>
-
-      {/* Position dots */}
-      <div className="flex items-center justify-center gap-1.5">
-        {picks.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setIdx(i)}
-            className={`h-1.5 rounded-full transition-all ${
-              i === safeIdx ? 'w-6 bg-white/80' : 'w-1.5 bg-white/25 hover:bg-white/40'
-            }`}
-            aria-label={`Go to pick ${i + 1}`}
-          />
         ))}
       </div>
     </div>

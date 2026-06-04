@@ -2453,7 +2453,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
         shadow-2xl shadow-black/30
         overflow-hidden
       ">
-        <div className="p-1.5 sm:p-2 grid grid-cols-1 md:grid-cols-10 gap-2 lg:gap-3 items-start">
+        <div className="p-1 sm:p-1.5 grid grid-cols-1 md:grid-cols-10 gap-1.5 lg:gap-2 items-start">
 
       {/* ─── LEFT SIDEBAR (col-span-3 of 10 = 30% width): INNER framed
           table. self-start so the panel hugs its own content height
@@ -2540,7 +2540,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
       <div className="
         rounded-3xl bg-gradient-to-br from-brand/[0.10] via-white/[0.02] to-transparent border border-brand/30
         shadow-2xl shadow-black/30
-        overflow-hidden p-1.5 sm:p-2
+        overflow-hidden p-1 sm:p-1.5
       ">
 
       {/* Hero + sidebar results: the top pick (highest score) is the
@@ -2554,7 +2554,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
           the outer 12-col. The narrower right column naturally shrinks
           each card so the trio fits in a typical laptop viewport
           without scrolling. */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 lg:gap-3 min-h-[280px] md:min-h-[420px]">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 lg:gap-2 min-h-[280px] md:min-h-[420px]">
         <AnimatePresence mode="wait">
           {picks?.length === 0 ? (
             <ExhaustedState key="exhausted" className="md:col-span-12" />
@@ -2570,7 +2570,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-                className="md:col-span-8 w-full md:max-w-[calc((100vh-360px)*0.667)] md:mx-auto relative group will-change-transform"
+                className="md:col-span-7 w-full md:max-w-[calc((100vh-360px)*0.667)] md:mx-auto relative group will-change-transform"
               >
                 <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-brand text-black text-[10px] font-bold tracking-wider uppercase shadow-lg">
                   ★ Top pick
@@ -2603,8 +2603,10 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                 </motion.p>
               </motion.div>
 
-              {/* ALTERNATIVES — col-span-4 stacked */}
-              <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-2 lg:gap-3 self-start">
+              {/* ALTERNATIVES — col-span-5 stacked. Bumped from
+                  col-span-4 so the 2nd + 3rd cards have meaningfully
+                  more horizontal space relative to the featured pick. */}
+              <div className="md:col-span-5 grid grid-cols-2 md:grid-cols-1 gap-1.5 lg:gap-2 self-start">
                 {picks.slice(1).map((pick, idx) => (
                   <motion.div
                     key={`alt-${round}-${pick.id}`}
@@ -2612,7 +2614,7 @@ function ResultsView({ picks, loading, round, moods, occasion, occasionLabel, si
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: 0.08 + idx * 0.06 }}
-                    className="w-full md:max-w-[calc(((100vh-440px)/2)*0.667)] md:mx-auto relative group will-change-transform"
+                    className="w-full relative group will-change-transform"
                   >
                     <button
                       onClick={() => onDismiss(pick)}
